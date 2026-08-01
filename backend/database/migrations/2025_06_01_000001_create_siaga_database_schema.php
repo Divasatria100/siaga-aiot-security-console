@@ -50,35 +50,43 @@ return new class extends Migration
     private function upPostgres(): void
     {
         // ------------------------------------------------------------
-        // 1. Extensions
+        // Extensions, Tables, Hypertable, and Indexes
+        //
+        // Executed as a single SQL statement to keep the migration
+        // concise and maintainable. All constraints are declared inline
+        // inside CREATE TABLE. IF NOT EXISTS guards are omitted because
+        // migrate:fresh always starts from an empty database; the only
+        // exceptions are CREATE EXTENSION (extensions survive
+        // migrate:fresh) and create_hypertable(if_not_exists => TRUE)
+        // for extra safety.
+        //
+        // create_hypertable() runs before CREATE INDEX so indexes are
+        // built on hypertable chunks (TimescaleDB best practice).
         // ------------------------------------------------------------
         DB::unprepared(<<<'SQL'
+            -- Extensions (DDD §2)
             CREATE EXTENSION IF NOT EXISTS timescaledb;
-        SQL);
 
-        // ------------------------------------------------------------
-        // 2. Tables
-        // All timestamp columns use TIMESTAMPTZ to store the timezone
-        // with the timestamp, consistent across Laravel, ESP32, React
-        // Dashboard, and the Future AI Service.
-        // ------------------------------------------------------------
-        DB::unprepared(<<<'SQL'
-            CREATE TABLE IF NOT EXISTS devices (
+            -- Tables (DDD §6)
+            -- All timestamp columns use TIMESTAMPTZ to store the timezone
+            -- with the timestamp, consistent across Laravel, ESP32, React
+            -- Dashboard, and the Future AI Service.
+            CREATE TABLE devices (
                 id           BIGSERIAL     PRIMARY KEY,
                 device_id    VARCHAR(255)  NOT NULL,
                 name         VARCHAR(255)  NOT NULL,
                 status       VARCHAR(20)   NOT NULL DEFAULT 'offline',
                 last_seen_at TIMESTAMPTZ   NULL,
                 created_at   TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at   TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP
+                updated_at   TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT uq_devices_device_id UNIQUE (device_id),
+                CONSTRAINT chk_devices_status CHECK (status IN ('online', 'offline'))
             );
-        SQL);
 
-        // sensor_data: time-series hypertable (DDD §6.2, §8).
-        // Composite primary key (id, recorded_at) results from TimescaleDB
-        // chunk-based partitioning.
-        DB::unprepared(<<<'SQL'
-            CREATE TABLE IF NOT EXISTS sensor_data (
+            -- sensor_data: time-series hypertable (DDD §6.2, §8).
+            -- Composite primary key (id, recorded_at) results from
+            -- TimescaleDB chunk-based partitioning.
+            CREATE TABLE sensor_data (
                 id          BIGSERIAL      NOT NULL,
                 device_id   BIGINT         NOT NULL,
                 recorded_at TIMESTAMPTZ    NOT NULL,
@@ -89,233 +97,88 @@ return new class extends Migration
                 obstacle    BOOLEAN        NOT NULL,
                 status      VARCHAR(10)    NOT NULL,
                 created_at  TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (id, recorded_at)
+                PRIMARY KEY (id, recorded_at),
+                CONSTRAINT chk_sensor_data_status CHECK (status IN ('NORMAL', 'WARNING', 'DANGER')),
+                CONSTRAINT fk_sensor_data_device_id
+                    FOREIGN KEY (device_id) REFERENCES devices (id)
+                    ON DELETE RESTRICT
             );
-        SQL);
 
-        DB::unprepared(<<<'SQL'
-            CREATE TABLE IF NOT EXISTS alerts (
+            CREATE TABLE alerts (
                 id             BIGSERIAL    PRIMARY KEY,
                 device_id      BIGINT       NOT NULL,
                 sensor_data_id BIGINT       NOT NULL,
                 status         VARCHAR(10)  NOT NULL,
                 triggered_at   TIMESTAMPTZ  NOT NULL,
-                created_at     TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
+                created_at     TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT chk_alerts_status CHECK (status IN ('WARNING', 'DANGER')),
+                CONSTRAINT fk_alerts_device_id
+                    FOREIGN KEY (device_id) REFERENCES devices (id)
+                    ON DELETE RESTRICT
             );
-        SQL);
 
-        DB::unprepared(<<<'SQL'
-            CREATE TABLE IF NOT EXISTS system_logs (
+            CREATE TABLE system_logs (
                 id         BIGSERIAL    PRIMARY KEY,
                 device_id  BIGINT       NULL,
                 log_level  VARCHAR(10)  NOT NULL,
                 source     VARCHAR(255) NOT NULL,
                 message    TEXT         NOT NULL,
-                created_at TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT chk_system_logs_log_level CHECK (log_level IN ('info', 'warning', 'error')),
+                CONSTRAINT fk_system_logs_device_id
+                    FOREIGN KEY (device_id) REFERENCES devices (id)
+                    ON DELETE RESTRICT
             );
-        SQL);
 
-        // ------------------------------------------------------------
-        // 3. Unique Constraints
-        // ------------------------------------------------------------
-        DB::unprepared(<<<'SQL'
-            DO $$
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_devices_device_id') THEN
-                    ALTER TABLE devices
-                        ADD CONSTRAINT uq_devices_device_id UNIQUE (device_id);
-                END IF;
-            END $$;
-        SQL);
-
-        // ------------------------------------------------------------
-        // 4. Check Constraints
-        // ------------------------------------------------------------
-        DB::unprepared(<<<'SQL'
-            DO $$
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_devices_status') THEN
-                    ALTER TABLE devices
-                        ADD CONSTRAINT chk_devices_status CHECK (status IN ('online', 'offline'));
-                END IF;
-            END $$;
-        SQL);
-
-        DB::unprepared(<<<'SQL'
-            DO $$
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_sensor_data_status') THEN
-                    ALTER TABLE sensor_data
-                        ADD CONSTRAINT chk_sensor_data_status CHECK (status IN ('NORMAL', 'WARNING', 'DANGER'));
-                END IF;
-            END $$;
-        SQL);
-
-        DB::unprepared(<<<'SQL'
-            DO $$
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_alerts_status') THEN
-                    ALTER TABLE alerts
-                        ADD CONSTRAINT chk_alerts_status CHECK (status IN ('WARNING', 'DANGER'));
-                END IF;
-            END $$;
-        SQL);
-
-        DB::unprepared(<<<'SQL'
-            DO $$
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_system_logs_log_level') THEN
-                    ALTER TABLE system_logs
-                        ADD CONSTRAINT chk_system_logs_log_level CHECK (log_level IN ('info', 'warning', 'error'));
-                END IF;
-            END $$;
-        SQL);
-
-        // ------------------------------------------------------------
-        // 5. Foreign Keys
-        // Referential integrity (DDD §10): RESTRICT prevents accidental
-        // removal of historical data.
-        // ------------------------------------------------------------
-        // fk_sensor_data_device_id: sensor_data -> devices
-        DB::unprepared(<<<'SQL'
-            DO $$
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_sensor_data_device_id') THEN
-                    ALTER TABLE sensor_data
-                        ADD CONSTRAINT fk_sensor_data_device_id
-                        FOREIGN KEY (device_id) REFERENCES devices (id)
-                        ON DELETE RESTRICT;
-                END IF;
-            END $$;
-        SQL);
-
-        // fk_alerts_device_id: alerts -> devices
-        DB::unprepared(<<<'SQL'
-            DO $$
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_alerts_device_id') THEN
-                    ALTER TABLE alerts
-                        ADD CONSTRAINT fk_alerts_device_id
-                        FOREIGN KEY (device_id) REFERENCES devices (id)
-                        ON DELETE RESTRICT;
-                END IF;
-            END $$;
-        SQL);
-
-        // fk_alerts_sensor_data_id (alerts -> sensor_data) is intentionally
-        // deferred: it is created after the hypertable conversion because
-        // TimescaleDB does not permit foreign key references to a hypertable,
-        // and sensor_data.id is not unique in PostgreSQL (composite PK).
-        // SQLite enforces this relationship for local development.
-
-        // fk_system_logs_device_id: system_logs -> devices (nullable)
-        DB::unprepared(<<<'SQL'
-            DO $$
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_system_logs_device_id') THEN
-                    ALTER TABLE system_logs
-                        ADD CONSTRAINT fk_system_logs_device_id
-                        FOREIGN KEY (device_id) REFERENCES devices (id)
-                        ON DELETE RESTRICT;
-                END IF;
-            END $$;
-        SQL);
-
-        // ------------------------------------------------------------
-        // 6. Indexes (DDD §9)
-        // ------------------------------------------------------------
-        DB::unprepared(<<<'SQL'
-            CREATE INDEX IF NOT EXISTS idx_sensor_data_device_id_recorded_at
-                ON sensor_data (device_id, recorded_at);
-        SQL);
-
-        DB::unprepared(<<<'SQL'
-            CREATE INDEX IF NOT EXISTS idx_sensor_data_device_id
-                ON sensor_data (device_id);
-        SQL);
-
-        DB::unprepared(<<<'SQL'
-            CREATE INDEX IF NOT EXISTS idx_alerts_device_id_triggered_at
-                ON alerts (device_id, triggered_at);
-        SQL);
-
-        DB::unprepared(<<<'SQL'
-            CREATE INDEX IF NOT EXISTS idx_alerts_status
-                ON alerts (status);
-        SQL);
-
-        DB::unprepared(<<<'SQL'
-            CREATE INDEX IF NOT EXISTS idx_alerts_device_id
-                ON alerts (device_id);
-        SQL);
-
-        DB::unprepared(<<<'SQL'
-            CREATE INDEX IF NOT EXISTS idx_system_logs_device_id
-                ON system_logs (device_id);
-        SQL);
-
-        // ------------------------------------------------------------
-        // 7. TimescaleDB Hypertable (DDD §8)
-        // recorded_at is the time column; chunks are created per day.
-        // ------------------------------------------------------------
-        DB::unprepared(<<<'SQL'
+            -- Hypertable (DDD §8)
+            -- recorded_at is the time column; chunks are created per day.
             SELECT create_hypertable(
                 'sensor_data',
                 'recorded_at',
                 chunk_time_interval => INTERVAL '1 day',
                 if_not_exists       => TRUE
             );
+
+            -- Indexes (DDD §9)
+            CREATE INDEX idx_sensor_data_device_id_recorded_at
+                ON sensor_data (device_id, recorded_at);
+            CREATE INDEX idx_sensor_data_device_id
+                ON sensor_data (device_id);
+            CREATE INDEX idx_alerts_device_id_triggered_at
+                ON alerts (device_id, triggered_at);
+            CREATE INDEX idx_alerts_status
+                ON alerts (status);
+            CREATE INDEX idx_alerts_device_id
+                ON alerts (device_id);
+            CREATE INDEX idx_system_logs_device_id
+                ON system_logs (device_id);
         SQL);
 
-        // fk_alerts_sensor_data_id: alerts -> sensor_data (DDD §6.3, §7)
-        // Attempted after the hypertable conversion because TimescaleDB
-        // does not permit foreign key references to a hypertable, and
-        // PostgreSQL rejects the reference because sensor_data.id is not
-        // unique (composite primary key (id, recorded_at) per DDD §6.2).
-        // The constraint is therefore attempted best-effort and only the
-        // expected SQLSTATE 42830 (foreign key / unique constraint) is
-        // swallowed; SQLite enforces this relationship for local development.
-        try {
-            DB::unprepared(<<<'SQL'
-                DO $$
-                BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_alerts_sensor_data_id') THEN
-                        ALTER TABLE alerts
-                            ADD CONSTRAINT fk_alerts_sensor_data_id
-                            FOREIGN KEY (sensor_data_id) REFERENCES sensor_data (id)
-                            ON DELETE RESTRICT;
-                    END IF;
-                END $$;
-            SQL);
-        } catch (\Illuminate\Database\QueryException $e) {
-            $isExpectedHypertableKeyError = str_contains(
-                $e->getMessage(),
-                'SQLSTATE[42830]'
-            ) || str_contains($e->getMessage(), 'no unique constraint matching given keys');
-
-            if (! $isExpectedHypertableKeyError) {
-                throw $e;
-            }
-        }
+        // NOTE on fk_alerts_sensor_data_id (DDD §6.3, §7, §10):
+        // alerts.sensor_data_id intentionally has no FOREIGN KEY constraint
+        // on PostgreSQL/TimescaleDB. sensor_data is a hypertable with a
+        // composite primary key (id, recorded_at) per DDD §6.2, and
+        // PostgreSQL only allows a foreign key to reference a column (or
+        // column set) covered by a UNIQUE constraint or PRIMARY KEY — `id`
+        // alone is not unique, so a FK on `id` is rejected (SQLSTATE
+        // 42830), and TimescaleDB additionally does not support foreign
+        // keys referencing a hypertable. This mirrors the SERON schema,
+        // where anomaly_event.data_id references sensor_data (also a
+        // hypertable with a composite primary key) without a FOREIGN KEY
+        // constraint for the same reason. The relationship is still
+        // enforced at the application layer, and remains a real FOREIGN
+        // KEY (fk_alerts_sensor_data_id) on SQLite for local development.
     }
 
     private function downPostgres(): void
     {
         // Drop in reverse dependency order (system_logs -> alerts ->
-        // sensor_data -> devices), then remove the extension.
+        // sensor_data -> devices). CASCADE releases the hypertable
+        // dependency implied by TimescaleDB.
         DB::unprepared(<<<'SQL'
             DROP TABLE IF EXISTS system_logs CASCADE;
-        SQL);
-
-        DB::unprepared(<<<'SQL'
             DROP TABLE IF EXISTS alerts CASCADE;
-        SQL);
-
-        DB::unprepared(<<<'SQL'
             DROP TABLE IF EXISTS sensor_data CASCADE;
-        SQL);
-
-        DB::unprepared(<<<'SQL'
             DROP TABLE IF EXISTS devices CASCADE;
         SQL);
     }
