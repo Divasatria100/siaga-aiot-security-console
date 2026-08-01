@@ -58,16 +58,19 @@ return new class extends Migration
 
         // ------------------------------------------------------------
         // 2. Tables
+        // All timestamp columns use TIMESTAMPTZ to store the timezone
+        // with the timestamp, consistent across Laravel, ESP32, React
+        // Dashboard, and the Future AI Service.
         // ------------------------------------------------------------
         DB::unprepared(<<<'SQL'
             CREATE TABLE IF NOT EXISTS devices (
-                id           BIGSERIAL    PRIMARY KEY,
-                device_id    VARCHAR(255) NOT NULL,
-                name         VARCHAR(255) NOT NULL,
-                status       VARCHAR(20)  NOT NULL DEFAULT 'offline',
-                last_seen_at TIMESTAMP    NULL,
-                created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+                id           BIGSERIAL     PRIMARY KEY,
+                device_id    VARCHAR(255)  NOT NULL,
+                name         VARCHAR(255)  NOT NULL,
+                status       VARCHAR(20)   NOT NULL DEFAULT 'offline',
+                last_seen_at TIMESTAMPTZ   NULL,
+                created_at   TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at   TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         SQL);
 
@@ -76,16 +79,16 @@ return new class extends Migration
         // chunk-based partitioning.
         DB::unprepared(<<<'SQL'
             CREATE TABLE IF NOT EXISTS sensor_data (
-                id          BIGSERIAL    NOT NULL,
-                device_id   BIGINT       NOT NULL,
-                recorded_at TIMESTAMP    NOT NULL,
-                temperature NUMERIC      NOT NULL,
-                humidity    NUMERIC      NOT NULL,
-                motion      BOOLEAN      NOT NULL,
-                light       NUMERIC      NOT NULL,
-                obstacle    BOOLEAN      NOT NULL,
-                status      VARCHAR(10)  NOT NULL,
-                created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                id          BIGSERIAL      NOT NULL,
+                device_id   BIGINT         NOT NULL,
+                recorded_at TIMESTAMPTZ    NOT NULL,
+                temperature NUMERIC(5,2)   NOT NULL,
+                humidity    NUMERIC(5,2)   NOT NULL,
+                motion      BOOLEAN        NOT NULL,
+                light       NUMERIC(10,2)  NOT NULL,
+                obstacle    BOOLEAN        NOT NULL,
+                status      VARCHAR(10)    NOT NULL,
+                created_at  TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (id, recorded_at)
             );
         SQL);
@@ -96,8 +99,8 @@ return new class extends Migration
                 device_id      BIGINT       NOT NULL,
                 sensor_data_id BIGINT       NOT NULL,
                 status         VARCHAR(10)  NOT NULL,
-                triggered_at   TIMESTAMP    NOT NULL,
-                created_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+                triggered_at   TIMESTAMPTZ  NOT NULL,
+                created_at     TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         SQL);
 
@@ -108,7 +111,7 @@ return new class extends Migration
                 log_level  VARCHAR(10)  NOT NULL,
                 source     VARCHAR(255) NOT NULL,
                 message    TEXT         NOT NULL,
-                created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         SQL);
 
