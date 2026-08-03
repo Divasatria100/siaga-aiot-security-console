@@ -25,3 +25,39 @@
 - [x] 4. Create `backend/app/Models/SystemLog.php`
 - [x] 5. Validate: `php -l` on all four model files
 - [x] 6. Verify models load correctly in Laravel (introspection script — all 8 relationship checks PASS; `artisan model:show` requires a running PostgreSQL server which is currently offline)
+
+## Service Layer (Completed per ADR-002)
+- [x] 1. Create 4 Service Contracts in `app/Services/Contracts/`:
+      - [x] `DeviceServiceInterface`
+      - [x] `SensorDataServiceInterface`
+      - [x] `AlertServiceInterface`
+      - [x] `SystemStatusServiceInterface`
+- [x] 2. Create 4 Service Implementations in `app/Services/`:
+      - [x] `DeviceService`
+      - [x] `SensorDataService`
+      - [x] `AlertService`
+      - [x] `SystemStatusService`
+- [x] 3. Add Service bindings to `AppServiceProvider` (Interface -> Implementation)
+- [x] 4. Implement `SensorDataService::storeSensorData()` transactional ingestion flow
+      - [x] Auto-registration of unknown device (default name "Device {device_id}")
+      - [x] Device status update to online + last_seen_at
+      - [x] Sensor data persistence
+      - [x] Alert derivation on WARNING/DANGER
+      - [x] Transaction via `DB::transaction()`
+- [x] 5. Implement business rules (auto-registration, alert derivation, device online, defensive status validation)
+- [x] 6. Implement exception throwing (ModelNotFoundException, ValidationException)
+- [x] 7. Implement logging after commit (Laravel Log + SystemLogRepository)
+- [x] 8. Validate: `php -l` on all 8 service files + AppServiceProvider
+- [x] 9. Verify DI resolution via tinker (all 4 services resolve)
+- [x] 10. Run `storage/app/service_smoke_test.php` — 39/39 checks PASS
+
+## Architecture Documentation (Completed)
+- [x] 1. Update `docs/ADR.md` with "Implementation Status — ADR-001" section (Completed / Approved, 52/52 repo tests)
+- [x] 2. Update `docs/ADR.md` with "Implementation Status — ADR-002" section (Completed / Approved, 39/39 service tests)
+- [x] 3. Keep all existing ADR decisions unchanged
+- [x] 4. Add "Next Phase — ADR-003: Controller + FormRequest Layer" (Pending) with expected architecture flow
+
+## Next Phase (Pending — awaiting approval)
+- [ ] ADR-003: Controller + FormRequest Layer
+- [ ] ADR-004: Exception Handling / API Response Layer
+- [ ] Integration Testing

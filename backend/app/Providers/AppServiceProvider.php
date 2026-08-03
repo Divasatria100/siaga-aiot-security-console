@@ -10,6 +10,14 @@ use App\Repositories\Contracts\SystemLogRepositoryInterface;
 use App\Repositories\DeviceRepository;
 use App\Repositories\SensorDataRepository;
 use App\Repositories\SystemLogRepository;
+use App\Services\AlertService;
+use App\Services\Contracts\AlertServiceInterface;
+use App\Services\Contracts\DeviceServiceInterface;
+use App\Services\Contracts\SensorDataServiceInterface;
+use App\Services\Contracts\SystemStatusServiceInterface;
+use App\Services\DeviceService;
+use App\Services\SensorDataService;
+use App\Services\SystemStatusService;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -37,6 +45,26 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(
             SystemLogRepositoryInterface::class,
             SystemLogRepository::class
+        );
+
+        $this->app->bind(
+            DeviceServiceInterface::class,
+            DeviceService::class
+        );
+
+        $this->app->bind(
+            SensorDataServiceInterface::class,
+            SensorDataService::class
+        );
+
+        $this->app->bind(
+            AlertServiceInterface::class,
+            AlertService::class
+        );
+
+        $this->app->bind(
+            SystemStatusServiceInterface::class,
+            SystemStatusService::class
         );
     }
 
