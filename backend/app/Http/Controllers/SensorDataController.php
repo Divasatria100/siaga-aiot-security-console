@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\GetLatestSensorDataRequest;
 use App\Http\Requests\GetSensorDataHistoryRequest;
 use App\Http\Requests\StoreSensorDataRequest;
+use App\Http\Resources\SensorDataResource;
 use App\Services\Contracts\SensorDataServiceInterface;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -46,9 +47,9 @@ class SensorDataController extends Controller
             $request->validated()
         );
 
-        return response()->json([
-            'data' => $result,
-        ], 201);
+        return (new SensorDataResource($result))
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**
@@ -63,9 +64,7 @@ class SensorDataController extends Controller
 
         $result = $this->sensorDataService->getLatestSensorData($deviceId);
 
-        return response()->json([
-            'data' => $result,
-        ]);
+        return (new SensorDataResource($result))->response();
     }
 
     /**
@@ -85,8 +84,6 @@ class SensorDataController extends Controller
             (int) ($validated['per_page'] ?? 50)
         );
 
-        return response()->json([
-            'data' => $result,
-        ]);
+        return SensorDataResource::collection($result)->response();
     }
 }

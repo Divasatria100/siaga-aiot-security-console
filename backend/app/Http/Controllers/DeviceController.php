@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Requests\GetDevicesRequest;
+use App\Http\Resources\DeviceResource;
 use App\Services\Contracts\DeviceServiceInterface;
 use Illuminate\Http\JsonResponse;
 
@@ -41,9 +42,7 @@ class DeviceController extends Controller
 
         $result = $this->deviceService->getAllDevices($status);
 
-        return response()->json([
-            'data' => $result,
-        ]);
+        return DeviceResource::collection($result)->response();
     }
 
     /**
@@ -56,8 +55,6 @@ class DeviceController extends Controller
     {
         $result = $this->deviceService->getDeviceByDeviceId($deviceId);
 
-        return response()->json([
-            'data' => $result,
-        ]);
+        return (new DeviceResource($result))->response();
     }
 }

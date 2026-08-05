@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Requests\GetAlertsRequest;
+use App\Http\Resources\AlertResource;
 use App\Services\Contracts\AlertServiceInterface;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -52,9 +53,7 @@ class AlertController extends Controller
             (int) ($validated['per_page'] ?? 20)
         );
 
-        return response()->json([
-            'data' => $result,
-        ]);
+        return AlertResource::collection($result)->response();
     }
 
     /**
@@ -67,8 +66,6 @@ class AlertController extends Controller
     {
         $result = $this->alertService->getAlertById($id);
 
-        return response()->json([
-            'data' => $result,
-        ]);
+        return (new AlertResource($result))->response();
     }
 }

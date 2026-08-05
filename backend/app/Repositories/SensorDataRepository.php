@@ -12,21 +12,29 @@ class SensorDataRepository implements SensorDataRepositoryInterface
 {
     /**
      * Store a new sensor data record (primary write path).
+     *
+     * The device relation is loaded so the API Resource can expose the
+     * device business key without triggering a lazy-load query.
      */
     public function create(array $data): SensorData
     {
-        return SensorData::query()->create($data);
+        return SensorData::query()
+            ->create($data)
+            ->load('device');
     }
 
     /**
      * Get the most recent sensor data record for a device.
      *
      * Orders by recorded_at DESC because recorded_at is the hypertable
-     * time column (DDD section 8).
+     * time column (DDD section 8). The device relation is eager loaded so
+     * the API Resource can expose the device business key without
+     * triggering a lazy-load query.
      */
     public function getLatestByDeviceId(string $deviceId): ?SensorData
     {
         return SensorData::query()
+            ->with('device')
             ->whereHas('device', function ($query) use ($deviceId) {
                 $query->where('device_id', $deviceId);
             })
@@ -38,7 +46,9 @@ class SensorDataRepository implements SensorDataRepositoryInterface
      * Get paginated sensor data history for a device within a time range.
      *
      * Filters on both device_id and recorded_at to leverage the composite
-     * index (DDD section 9) and TimescaleDB chunk pruning.
+     * index (DDD section 9) and TimescaleDB chunk pruning. The device
+     * relation is eager loaded so the API Resource can expose the device
+     * business key without triggering a lazy-load query.
      */
     public function getHistoryByDeviceId(
         string $deviceId,
@@ -47,6 +57,7 @@ class SensorDataRepository implements SensorDataRepositoryInterface
         int $perPage = 50
     ): LengthAwarePaginator {
         return SensorData::query()
+            ->with('device')
             ->whereHas('device', function ($query) use ($deviceId) {
                 $query->where('device_id', $deviceId);
             })

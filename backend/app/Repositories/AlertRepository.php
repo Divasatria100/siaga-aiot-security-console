@@ -20,6 +20,9 @@ class AlertRepository implements AlertRepositoryInterface
 
     /**
      * Get paginated alert history with optional filters.
+     *
+     * The device relation is eager loaded so the API Resource can expose
+     * the device business key without triggering a lazy-load query.
      */
     public function getAll(
         ?string $deviceId = null,
@@ -28,7 +31,8 @@ class AlertRepository implements AlertRepositoryInterface
         ?Carbon $endDate = null,
         int $perPage = 20
     ): LengthAwarePaginator {
-        $query = Alert::query();
+        $query = Alert::query()
+            ->with('device');
 
         if ($deviceId !== null) {
             $query->whereHas('device', function ($q) use ($deviceId) {
@@ -54,12 +58,16 @@ class AlertRepository implements AlertRepositoryInterface
     }
 
     /**
-     * Find a single alert record with its related sensor data.
+     * Find a single alert record with its related sensor data and device.
+     *
+     * The device and sensorData relations are eager loaded so the API
+     * Resource can expose the device business key and the nested sensor
+     * data without triggering a lazy-load query.
      */
     public function findById(int $id): ?Alert
     {
         return Alert::query()
-            ->with('sensorData')
+            ->with(['device', 'sensorData'])
             ->find($id);
     }
 }
