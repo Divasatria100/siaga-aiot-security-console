@@ -1915,27 +1915,50 @@ SensorDataService menjadi pusat business orchestration untuk seluruh proses sens
 
 ---
 
-# Next Phase — ADR-003: Controller + FormRequest Layer
+# Roadmap Implementasi
+
+```
+ADR-001 Repository Layer ✅ Completed
+        ↓
+ADR-002 Service Layer ✅ Completed
+        ↓
+ADR-003 Form Request Layer ✅ Completed
+        ↓
+ADR-004 Controller + API Resource + API Route Layer (Pending)
+```
+
+---
+
+# Implementation Status — ADR-003
+
+## Status: Completed / Approved
+
+## Validation
+
+- Form Request Layer bertujuan untuk menangani structural validation pada sisi backend.
+- Berikut Form Request yang telah dibuat:
+  - `StoreSensorDataRequest`
+  - `GetLatestSensorDataRequest`
+  - `GetSensorDataHistoryRequest`
+  - `GetDevicesRequest`
+  - `GetAlertsRequest`
+- Seluruh Form Request mengikuti Clean Architecture dan Laravel Form Request.
+- Business logic tetap berada di Service Layer.
+- Implementasi telah diverifikasi melalui code review dan audit.
+- Tahap ini dinyatakan COMPLETE.
+
+---
+
+# Next Phase — ADR-004: Controller + API Resource + API Route Layer
 
 ## Status: Pending
 
-## Expected Architecture Flow
+## Scope
 
-```
-ADR-001 Repository Layer
-        ↓
-ADR-002 Service Layer
-        ↓
-ADR-003 Controller + FormRequest Layer
-        ↓
-ADR-004 Exception Handling / API Response Layer
-        ↓
-Integration Testing
-```
+Tahap berikutnya mencakup:
 
-## Scope (to be defined at ADR-003 approval)
+- Controllers
+- API Resources
+- API Routes
 
-- REST API Controllers (`DeviceController`, `SensorDataController`, `AlertController`, `SystemStatusController`).
-- FormRequest validation classes (structural validation per ADR-002 §9).
-- API routes under `/api/v1` per API Specification §6.
-- Controller layer handles HTTP only; business logic remains in the Service Layer.
+Tanpa mengubah arsitektur project.
