@@ -28,11 +28,11 @@ class DeviceRepository implements DeviceRepositoryInterface
     /**
      * Get all devices, optionally filtered by connection status.
      */
-    public function getAll(?string $status = null): LengthAwarePaginator
+    public function getAll(?string $status = null, int $perPage = 15): LengthAwarePaginator
     {
         return Device::query()
             ->when($status, fn ($query) => $query->where('status', $status))
-            ->paginate();
+            ->paginate($perPage);
     }
 
     /**

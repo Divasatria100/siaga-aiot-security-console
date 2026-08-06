@@ -27,9 +27,9 @@ class DeviceService implements DeviceServiceInterface
     /**
      * Get all devices, optionally filtered by connection status.
      */
-    public function getAllDevices(?string $status = null): LengthAwarePaginator
+    public function getAllDevices(?string $status = null, int $perPage = 15): LengthAwarePaginator
     {
-        return $this->deviceRepository->getAll($status);
+        return $this->deviceRepository->getAll($status, $perPage);
     }
 
     /**

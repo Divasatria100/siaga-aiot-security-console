@@ -9,6 +9,7 @@ use App\Http\Requests\GetSensorDataHistoryRequest;
 use App\Http\Requests\StoreSensorDataRequest;
 use App\Http\Resources\SensorDataResource;
 use App\Services\Contracts\SensorDataServiceInterface;
+use App\Support\ApiResponse;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 
@@ -47,9 +48,11 @@ class SensorDataController extends Controller
             $request->validated()
         );
 
-        return (new SensorDataResource($result))
-            ->response()
-            ->setStatusCode(201);
+        return ApiResponse::success(
+            new SensorDataResource($result),
+            'Sensor data berhasil disimpan',
+            201
+        );
     }
 
     /**
@@ -64,7 +67,7 @@ class SensorDataController extends Controller
 
         $result = $this->sensorDataService->getLatestSensorData($deviceId);
 
-        return (new SensorDataResource($result))->response();
+        return ApiResponse::success(new SensorDataResource($result));
     }
 
     /**
@@ -84,6 +87,6 @@ class SensorDataController extends Controller
             (int) ($validated['per_page'] ?? 50)
         );
 
-        return SensorDataResource::collection($result)->response();
+        return ApiResponse::paginated($result, SensorDataResource::collection($result));
     }
 }

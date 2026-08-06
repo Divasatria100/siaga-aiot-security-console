@@ -19,9 +19,10 @@ interface DeviceServiceInterface
      * Get all devices, optionally filtered by connection status.
      *
      * @param  string|null  $status  Optional filter: 'online' or 'offline'.
+     * @param  int  $perPage  Number of records per page.
      * @return \Illuminate\Contracts\Pagination\LengthAwarePaginator
      */
-    public function getAllDevices(?string $status = null): LengthAwarePaginator;
+    public function getAllDevices(?string $status = null, int $perPage = 15): LengthAwarePaginator;
 
     /**
      * Get a single device by its unique business key (device_id).

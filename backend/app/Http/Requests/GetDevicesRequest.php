@@ -31,6 +31,7 @@ class GetDevicesRequest extends FormRequest
     {
         return [
             'status' => ['nullable', 'in:online,offline'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ];
     }
 
@@ -43,6 +44,9 @@ class GetDevicesRequest extends FormRequest
     {
         return [
             'status.in' => 'The selected status is invalid. It must be one of online, offline.',
+            'per_page.integer' => 'The per_page must be an integer.',
+            'per_page.min' => 'The per_page must be at least 1.',
+            'per_page.max' => 'The per_page must not exceed 100.',
         ];
     }
 
@@ -55,6 +59,7 @@ class GetDevicesRequest extends FormRequest
     {
         return [
             'status' => 'status',
+            'per_page' => 'per_page',
         ];
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Services\Contracts\SystemStatusServiceInterface;
+use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -37,8 +38,6 @@ class SystemStatusController extends Controller
     {
         $result = $this->systemStatusService->getSystemStatus();
 
-        return response()->json([
-            'data' => $result,
-        ]);
+        return ApiResponse::success($result);
     }
 }

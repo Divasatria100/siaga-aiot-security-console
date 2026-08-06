@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\GetAlertsRequest;
 use App\Http\Resources\AlertResource;
 use App\Services\Contracts\AlertServiceInterface;
+use App\Support\ApiResponse;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 
@@ -53,7 +54,7 @@ class AlertController extends Controller
             (int) ($validated['per_page'] ?? 20)
         );
 
-        return AlertResource::collection($result)->response();
+        return ApiResponse::paginated($result, AlertResource::collection($result));
     }
 
     /**
@@ -66,6 +67,6 @@ class AlertController extends Controller
     {
         $result = $this->alertService->getAlertById($id);
 
-        return (new AlertResource($result))->response();
+        return ApiResponse::success(new AlertResource($result));
     }
 }

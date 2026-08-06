@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\GetDevicesRequest;
 use App\Http\Resources\DeviceResource;
 use App\Services\Contracts\DeviceServiceInterface;
+use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -38,11 +39,14 @@ class DeviceController extends Controller
      */
     public function index(GetDevicesRequest $request): JsonResponse
     {
-        $status = $request->validated()['status'] ?? null;
+        $validated = $request->validated();
 
-        $result = $this->deviceService->getAllDevices($status);
+        $status = $validated['status'] ?? null;
+        $perPage = (int) ($validated['per_page'] ?? 15);
 
-        return DeviceResource::collection($result)->response();
+        $result = $this->deviceService->getAllDevices($status, $perPage);
+
+        return ApiResponse::paginated($result, DeviceResource::collection($result));
     }
 
     /**
@@ -55,6 +59,6 @@ class DeviceController extends Controller
     {
         $result = $this->deviceService->getDeviceByDeviceId($deviceId);
 
-        return (new DeviceResource($result))->response();
+        return ApiResponse::success(new DeviceResource($result));
     }
 }

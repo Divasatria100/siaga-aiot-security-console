@@ -35,9 +35,10 @@ interface DeviceRepositoryInterface
      * Used by GET /api/v1/devices (API Spec section 6.1.1).
      *
      * @param  string|null  $status  Optional filter: 'online' or 'offline'.
+     * @param  int  $perPage  Number of records per page.
      * @return \Illuminate\Contracts\Pagination\LengthAwarePaginator
      */
-    public function getAll(?string $status = null): LengthAwarePaginator;
+    public function getAll(?string $status = null, int $perPage = 15): LengthAwarePaginator;
 
     /**
      * Create a device if it does not exist, or update it if it does.
