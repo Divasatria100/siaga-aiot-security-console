@@ -63,3 +63,23 @@ Membuat Laravel API Resources untuk transformasi response, konsisten dengan API 
 - [x] `GET /api/v1/devices` (tanpa per_page) → default `meta.per_page = 15`
 - [x] `per_page=0` → 422, `per_page=101` → 422
 - [x] Review akhir + laporan file yang diubah
+
+# TODO - Backend Feature Tests (HTTP Endpoint)
+
+## Tahap: Backend Tests - Feature Tests
+
+### Factory
+- [ ] Buat `database/factories/DeviceFactory.php`
+- [ ] Buat `database/factories/SensorDataFactory.php`
+- [ ] Buat `database/factories/AlertFactory.php`
+
+### Feature Tests
+- [ ] Buat `tests/Feature/DeviceApiTest.php`
+- [ ] Buat `tests/Feature/SensorDataApiTest.php`
+- [ ] Buat `tests/Feature/AlertApiTest.php`
+- [ ] Buat `tests/Feature/SystemStatusApiTest.php`
+
+### Verifikasi
+- [ ] Jalankan `php artisan test --testsuite=Feature`
+- [ ] Review seluruh hasil testing
+- [ ] Laporkan bug/inkonsistensi (tanpa memperbaiki)
