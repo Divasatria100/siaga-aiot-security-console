@@ -129,3 +129,37 @@ Hardware Validation
    ↓
 Approved Firmware
 ```
+
+## Architecture 
+┌─────────────────────┐
+│     CONFIGURATION   │
+│ Pins / Threshold /  │
+│ Timing / Frequency  │
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│    SENSOR STATE     │
+│ SensorData struct   │
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│    SENSOR READING   │
+│ readDHT()           │
+│ readPIR()           │
+│ readLDR()           │
+│ readObstacle()      │
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│   SYSTEM LOGIC      │
+│ updateSystemStatus()│
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│   OUTPUT CONTROL    │
+│ LED + Buzzer        │
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│ SERIAL MONITORING   │
+└─────────────────────┘
