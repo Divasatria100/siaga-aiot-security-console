@@ -173,7 +173,7 @@ class SensorDataApiTest extends TestCase
             'recorded_at' => now()->subDay(),
         ]);
 
-        $response = $this->getJson('/api/v1/sensor-data/history?device_id='.$device->device_id.'&start_date='.now()->subDays(2)->toIso8601String().'&end_date='.now()->toIso8601String());
+        $response = $this->getJson('/api/v1/sensor-data/history?device_id='.$device->device_id.'&start_date='.urlencode(now()->subDays(2)->toIso8601String()).'&end_date='.urlencode(now()->toIso8601String()));
 
         $response->assertStatus(200)
             ->assertJsonStructure([
@@ -201,7 +201,7 @@ class SensorDataApiTest extends TestCase
             'recorded_at' => now()->subDay(),
         ]);
 
-        $response = $this->getJson('/api/v1/sensor-data/history?device_id='.$device->device_id.'&start_date='.now()->subDays(2)->toIso8601String().'&end_date='.now()->toIso8601String().'&per_page=2');
+        $response = $this->getJson('/api/v1/sensor-data/history?device_id='.$device->device_id.'&start_date='.urlencode(now()->subDays(2)->toIso8601String()).'&end_date='.urlencode(now()->toIso8601String()).'&per_page=2');
 
         $response->assertStatus(200)
             ->assertJsonPath('success', true)
