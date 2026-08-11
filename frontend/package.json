@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "smoke:api": "vite build --ssr scripts/api-smoke.mjs --outDir .tmp-smoke --emptyOutDir && node .tmp-smoke/api-smoke.js",
+    "smoke:components": "vite build --ssr scripts/components-smoke.mjs --outDir .tmp-smoke --emptyOutDir && node .tmp-smoke/components-smoke.js",
     "smoke:polling": "node scripts/polling-race.mjs"
   },
   "dependencies": {

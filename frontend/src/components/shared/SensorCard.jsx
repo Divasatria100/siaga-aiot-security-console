@@ -1,0 +1,58 @@
+import { cn } from '@/lib/utils'
+import { Card } from '@/components/ui/card'
+
+const TONES = {
+  default: 'text-foreground',
+  normal: 'text-status-normal',
+  warning: 'text-status-warning',
+  danger: 'text-status-danger',
+  muted: 'text-muted-foreground',
+}
+
+/**
+ * SensorCard — satu nilai sensor beserta satuannya secara ringkas
+ * (FDD Bab 8), digunakan berulang pada Monitoring Page untuk tiap jenis
+ * sensor (suhu, kelembapan, cahaya, gerakan, obstacle).
+ * Nilai boolean (motion/obstacle) dilewatkan sebagai string hasil format.
+ *
+ * @param {object} props
+ * @param {string} props.label Label sensor (mono, uppercase)
+ * @param {string|number} props.value Nilai sensor (sudah terformat bila perlu)
+ * @param {string} [props.unit] Satuan sensor (lihat SENSOR_UNITS)
+ * @param {import('react').ReactNode} [props.icon] Ikon sensor
+ * @param {'default'|'normal'|'warning'|'danger'|'muted'} [props.tone] Tone warna nilai
+ * @param {string} [props.className]
+ */
+export function SensorCard({
+  label,
+  value,
+  unit,
+  icon,
+  tone = 'default',
+  className,
+}) {
+  return (
+    <Card className={cn('p-5', className)}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <p className="font-mono text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            {label}
+          </p>
+          <p className={cn('truncate text-xl font-semibold tracking-tight', TONES[tone])}>
+            {value}
+            {unit && (
+              <span className="ml-1 font-mono text-xs font-medium text-muted-foreground">
+                {unit}
+              </span>
+            )}
+          </p>
+        </div>
+        {icon && (
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-surface text-muted-foreground">
+            {icon}
+          </div>
+        )}
+      </div>
+    </Card>
+  )
+}
