@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 
 const DashboardPage = lazy(() => import('@/pages/Dashboard'))
 const MonitoringPage = lazy(() => import('@/pages/Monitoring'))
+const MonitoringDetailPage = lazy(() => import('@/pages/MonitoringDetail'))
 const HistoricalDataPage = lazy(() => import('@/pages/HistoricalData'))
 const AlertsPage = lazy(() => import('@/pages/Alerts'))
 const DevicesPage = lazy(() => import('@/pages/Devices'))
@@ -20,6 +21,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <DashboardPage /> },
       { path: 'monitoring', element: <MonitoringPage /> },
+      { path: 'monitoring/:deviceId', element: <MonitoringDetailPage /> },
       { path: 'history', element: <HistoricalDataPage /> },
       { path: 'alerts', element: <AlertsPage /> },
       { path: 'devices', element: <DevicesPage /> },

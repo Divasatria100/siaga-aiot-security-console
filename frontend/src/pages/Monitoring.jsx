@@ -1,23 +1,17 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useNavigate } from 'react-router-dom'
+import { MonitoringView } from '@/pages/Monitoring/MonitoringView'
 
 /**
- * Monitoring Page (stub Phase 1) — data sensor dan status terkini satu device.
- * Implementasi penuh pada fase berikutnya.
+ * Monitoring Page (route /monitoring) — tanpa device aktif dari URL.
+ * Device dipilih melalui selector; navigasi ke /monitoring/:deviceId
+ * agar state selalu tercermin pada URL (refresh-safe, shareable).
  */
 export default function MonitoringPage() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Monitoring</CardTitle>
-        <CardDescription>
-          Data sensor (suhu, kelembapan, gerakan, cahaya, obstacle) dan status sistem terkini.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">
-          Modul akan diimplementasikan pada fase berikutnya (GET /api/v1/sensor-data/latest).
-        </p>
-      </CardContent>
-    </Card>
-  )
+  const navigate = useNavigate()
+
+  const handleSelectDevice = (deviceId) => {
+    navigate(`/monitoring/${encodeURIComponent(deviceId)}`)
+  }
+
+  return <MonitoringView deviceId={null} onSelectDevice={handleSelectDevice} />
 }

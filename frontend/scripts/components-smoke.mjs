@@ -43,7 +43,11 @@ import { DataTable } from '@/components/shared/DataTable'
 import { Pagination } from '@/components/shared/Pagination'
 import { Chart } from '@/components/shared/Chart'
 import { ChartTooltip } from '@/components/shared/ChartTooltip'
+import { ApiError } from '@/lib/axios'
 import DashboardPage, { DashboardContent } from '@/pages/Dashboard'
+import MonitoringPage from '@/pages/Monitoring'
+import { MonitoringContent, SensorGrid } from '@/pages/Monitoring/MonitoringView'
+import HistoricalDataPage, { HistoricalDataContent } from '@/pages/HistoricalData'
 
 const render = (element) => renderToStaticMarkup(element)
 
@@ -287,6 +291,234 @@ function run() {
   assert.ok(staleHtml.includes('menampilkan data terakhir'))
   assert.ok(staleHtml.includes('SIAGA-001'))
   console.log('✓ DashboardContent (stale data + error notice)')
+
+  // 17. Monitoring Page — SSR initial (loading selector, belum pilih device)
+  const mon = render(h(MemoryRouter, null, h(MonitoringPage)))
+  assert.ok(mon.includes('Memuat daftar device'))
+  assert.ok(mon.includes('Monitoring'))
+  assert.ok(mon.includes('Pilih device…'))
+  console.log('✓ Monitoring Page (SSR initial/loading)')
+
+  // 18. SensorGrid — sensor terkini terformat (id-ID, Ada/Tidak, unit)
+  const sensorHtml = render(
+    h(SensorGrid, {
+      sensor: { temperature: 29.5, humidity: 68.2, light: 120, motion: true, obstacle: false },
+    })
+  )
+  assert.ok(sensorHtml.includes('Suhu'))
+  assert.ok(sensorHtml.includes('Kelembapan'))
+  assert.ok(sensorHtml.includes('Cahaya'))
+  assert.ok(sensorHtml.includes('Gerakan'))
+  assert.ok(sensorHtml.includes('Obstacle'))
+  assert.ok(sensorHtml.includes('29,5'))
+  assert.ok(sensorHtml.includes('68,2'))
+  assert.ok(sensorHtml.includes('120'))
+  assert.ok(sensorHtml.includes('Ada'))
+  assert.ok(sensorHtml.includes('Tidak'))
+  assert.ok(sensorHtml.includes('°C'))
+  assert.ok(sensorHtml.includes('%'))
+  assert.ok(sensorHtml.includes('lux'))
+  console.log('✓ SensorGrid (labels, id-ID values, Ada/Tidak, units)')
+
+  // 19. MonitoringContent — device belum punya data sensor (404 latest)
+  const notFound = new ApiError({ status: 404, code: 'NOT_FOUND', message: 'Sensor data tidak ditemukan' })
+  const noSensor = render(
+    h(MonitoringContent, {
+      device: { device_id: 'SIAGA-001', name: 'Ruang Server Utama', status: 'online', last_seen_at: null },
+      deviceError: null,
+      latest: null,
+      latestError: notFound,
+      latestLoading: false,
+      onRetryDevice: () => {},
+      onRetryLatest: () => {},
+    })
+  )
+  assert.ok(noSensor.includes('Belum ada data sensor'))
+  assert.ok(noSensor.includes('Ruang Server Utama'))
+  console.log('✓ MonitoringContent (404 latest → empty state)')
+
+  // 20. MonitoringContent — device tidak ditemukan (404 device)
+  const deviceNotFoundHtml = render(
+    h(MonitoringContent, {
+      device: null,
+      deviceError: notFound,
+      latest: null,
+      latestError: null,
+      latestLoading: false,
+      onRetryDevice: () => {},
+      onRetryLatest: () => {},
+    })
+  )
+  assert.ok(deviceNotFoundHtml.includes('Device tidak ditemukan'))
+  console.log('✓ MonitoringContent (404 device → empty state)')
+
+  // 21. MonitoringContent — error jaringan (ErrorState + retry)
+  const networkErr = new ApiError({ code: 'NETWORK_ERROR', message: 'Gagal terhubung ke server. Periksa koneksi dan coba lagi.', isNetworkError: true })
+  const errMon = render(
+    h(MonitoringContent, {
+      device: null,
+      deviceError: null,
+      latest: null,
+      latestError: networkErr,
+      latestLoading: false,
+      onRetryDevice: () => {},
+      onRetryLatest: () => {},
+    })
+  )
+  assert.ok(errMon.includes('Tidak dapat terhubung ke server'))
+  assert.ok(errMon.includes('Coba lagi'))
+  console.log('✓ MonitoringContent (network error → ErrorState)')
+
+  // 22. MonitoringContent — success + stale notice
+  const latestSensor = { device_id: 'SIAGA-001', recorded_at: new Date(Date.now() - 3 * 60 * 1000).toISOString(), temperature: 29.5, humidity: 68.2, motion: true, light: 120.0, obstacle: false, status: 'WARNING' }
+  const staleMon = render(
+    h(MonitoringContent, {
+      device: { device_id: 'SIAGA-001', name: 'Ruang Server Utama', status: 'online', last_seen_at: new Date().toISOString() },
+      deviceError: null,
+      latest: latestSensor,
+      latestError: { message: 'timeout' },
+      latestLoading: false,
+      onRetryDevice: () => {},
+      onRetryLatest: () => {},
+    })
+  )
+  assert.ok(staleMon.includes('menampilkan pembacaan terakhir'))
+  assert.ok(staleMon.includes('Warning'))
+  assert.ok(staleMon.includes('SIAGA-001'))
+  assert.ok(staleMon.includes('Suhu'))
+  console.log('✓ MonitoringContent (success + stale data)')
+
+  // 23. Historical Data Page — SSR initial (filter belum terisi)
+  const histPage = render(h(MemoryRouter, null, h(HistoricalDataPage)))
+  assert.ok(histPage.includes('Historical Data'))
+  assert.ok(histPage.includes('Filter Riwayat'))
+  assert.ok(histPage.includes('Pilih device dan rentang waktu'))
+  assert.ok(histPage.includes('Tanggal Awal'))
+  assert.ok(histPage.includes('Tanggal Akhir'))
+  console.log('✓ Historical Data Page (SSR initial/loading)')
+
+  const historyRecords = [
+    { id: 1, device_id: 'SIAGA-001', recorded_at: '2026-07-31T09:00:00Z', temperature: 29.5, humidity: 65.4, motion: false, light: 120.0, obstacle: false, status: 'NORMAL' },
+    { id: 2, device_id: 'SIAGA-001', recorded_at: '2026-07-31T09:05:00Z', temperature: 29.8, humidity: 64.1, motion: true, light: 135.0, obstacle: false, status: 'WARNING' },
+  ]
+  const historyMeta = { current_page: 1, per_page: 50, total: 2 }
+  const noop = () => {}
+
+  // 24. HistoricalDataContent — success (chart + table + pagination)
+  const histOk = render(
+    h(HistoricalDataContent, {
+      devices: [device],
+      deviceId: 'SIAGA-001',
+      startDate: '2026-07-01',
+      endDate: '2026-07-31',
+      onDeviceChange: noop,
+      onStartDateChange: noop,
+      onEndDateChange: noop,
+      records: historyRecords,
+      meta: historyMeta,
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+    })
+  )
+  assert.ok(histOk.includes('Tren Sensor'))
+  assert.ok(histOk.includes('Detail Riwayat'))
+  assert.ok(histOk.includes('Grafik tren suhu, kelembapan, dan cahaya'))
+  assert.ok(histOk.includes('29,5'))
+  assert.ok(histOk.includes('65,4'))
+  assert.ok(histOk.includes('Normal'))
+  assert.ok(histOk.includes('Warning'))
+  assert.ok(histOk.includes('Ada'))
+  assert.ok(histOk.includes('Tidak'))
+  assert.ok(histOk.includes('Menampilkan 1–2 dari 2 data'))
+  console.log('✓ HistoricalDataContent (success + chart + table)')
+
+  // 25. HistoricalDataContent — tidak ada data dalam rentang (200 kosong)
+  const histEmpty = render(
+    h(HistoricalDataContent, {
+      devices: [device],
+      deviceId: 'SIAGA-001',
+      startDate: '2026-07-01',
+      endDate: '2026-07-31',
+      onDeviceChange: noop,
+      onStartDateChange: noop,
+      onEndDateChange: noop,
+      records: [],
+      meta: { current_page: 1, per_page: 50, total: 0 },
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+    })
+  )
+  assert.ok(histEmpty.includes('Tidak ada data dalam rentang waktu ini'))
+  console.log('✓ HistoricalDataContent (200 empty range)')
+
+  // 26. HistoricalDataContent — rentang waktu tidak valid
+  const histInvalid = render(
+    h(HistoricalDataContent, {
+      devices: [device],
+      deviceId: 'SIAGA-001',
+      startDate: '2026-07-31',
+      endDate: '2026-07-01',
+      onDeviceChange: noop,
+      onStartDateChange: noop,
+      onEndDateChange: noop,
+      records: null,
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+    })
+  )
+  assert.ok(histInvalid.includes('Rentang waktu tidak valid'))
+  console.log('✓ HistoricalDataContent (invalid range)')
+
+  // 27. HistoricalDataContent — error jaringan (ErrorState + retry)
+  const histError = render(
+    h(HistoricalDataContent, {
+      devices: [device],
+      deviceId: 'SIAGA-001',
+      startDate: '2026-07-01',
+      endDate: '2026-07-31',
+      onDeviceChange: noop,
+      onStartDateChange: noop,
+      onEndDateChange: noop,
+      records: null,
+      meta: null,
+      loading: false,
+      error: networkErr,
+      onPageChange: noop,
+      onRetry: noop,
+    })
+  )
+  assert.ok(histError.includes('Tidak dapat terhubung ke server'))
+  assert.ok(histError.includes('Coba lagi'))
+  console.log('✓ HistoricalDataContent (network error)')
+
+  // 28. HistoricalDataContent — data lama saat refetch gagal (stale)
+  const histStale = render(
+    h(HistoricalDataContent, {
+      devices: [device],
+      deviceId: 'SIAGA-001',
+      startDate: '2026-07-01',
+      endDate: '2026-07-31',
+      onDeviceChange: noop,
+      onStartDateChange: noop,
+      onEndDateChange: noop,
+      records: historyRecords,
+      meta: historyMeta,
+      loading: false,
+      error: { message: 'timeout' },
+      onPageChange: noop,
+      onRetry: noop,
+    })
+  )
+  assert.ok(histStale.includes('menampilkan data terakhir'))
+  assert.ok(histStale.includes('Tren Sensor'))
+  assert.ok(histStale.includes('Detail Riwayat'))
+  console.log('✓ HistoricalDataContent (stale data + notice)')
 
   console.log('\nSMOKE PASSED — all shared components render OK')
 }
