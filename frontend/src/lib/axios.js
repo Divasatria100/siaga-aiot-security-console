@@ -64,6 +64,36 @@ export function normalizeError(error) {
 }
 
 /**
+ * True bila error merupakan HTTP 404 (mis. GET sensor-data/latest ketika
+ * device belum memiliki record sensor — dikategorikan sebagai Empty State,
+ * bukan kegagalan aplikasi).
+ *
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+export function isNotFoundError(error) {
+  return error instanceof ApiError && error.status === 404
+}
+
+/**
+ * Serializer query parameter yang deterministik:
+ * - nilai undefined/null/string kosong TIDAK dikirim.
+ * - nilai di-encode via URLSearchParams (ISO 8601 dengan offset
+ *   seperti `+07:00` di-encode menjadi `%2B07:00` dengan benar).
+ * - numerik dipertahankan (tidak berubah jadi string invalid).
+ */
+const paramsSerializer = {
+  serialize: (params) => {
+    const search = new URLSearchParams()
+    Object.entries(params ?? {}).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return
+      search.append(key, value)
+    })
+    return search.toString()
+  },
+}
+
+/**
  * Axios instance tunggal untuk seluruh komunikasi REST API SIAGA.
  * Base URL default /api/v1, dioverride melalui VITE_API_BASE_URL.
  */
@@ -74,6 +104,7 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
     Accept: 'application/json',
   },
+  paramsSerializer,
 })
 
 // Response interceptor: expose payload envelope ({ success, data, meta })

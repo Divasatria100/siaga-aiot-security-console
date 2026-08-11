@@ -3,15 +3,33 @@ import { DEFAULT_PER_PAGE } from '@/config/env'
 
 /**
  * @typedef {import('@/types').SensorData} SensorData
- * @typedef {import('@/types').ApiSuccessEnvelope} ApiSuccessEnvelope
+ * @typedef {import('@/types').SensorDataInput} SensorDataInput
+ * @typedef {import('@/types').ApiSuccessResponse} ApiSuccessResponse
  */
 
 /**
- * GET /api/v1/sensor-data/latest — data sensor terkini satu device.
- * 404 (belum ada record) dilaporkan sebagai ApiError.status === 404.
+ * POST /api/v1/devices/{device_id}/sensor-data — kirim pembacaan sensor.
+ * (Digunakan oleh ESP32; tersedia di data layer untuk kelengkapan kontrak,
+ *  tidak dipanggil oleh UI MVP.)
  *
  * @param {string} deviceId Business key perangkat
- * @returns {Promise<ApiSuccessEnvelope<SensorData>>}
+ * @param {SensorDataInput} payload Pembacaan sensor + status sistem
+ * @returns {Promise<ApiSuccessResponse<SensorData>>}
+ */
+export async function createSensorData(deviceId, payload) {
+  return apiClient.post(
+    `/devices/${encodeURIComponent(deviceId)}/sensor-data`,
+    payload
+  )
+}
+
+/**
+ * GET /api/v1/sensor-data/latest — data sensor terkini satu device.
+ * 404 (belum ada record) dilaporkan sebagai ApiError.status === 404,
+ * gunakan `isNotFoundError` untuk membedakan dari kegagalan lain.
+ *
+ * @param {string} deviceId Business key perangkat
+ * @returns {Promise<ApiSuccessResponse<SensorData>>}
  */
 export async function getLatestSensorData(deviceId) {
   return apiClient.get('/sensor-data/latest', {
@@ -28,7 +46,7 @@ export async function getLatestSensorData(deviceId) {
  * @param {string} params.endDate Akhir rentang (ISO 8601)
  * @param {number} [params.page] Nomor halaman
  * @param {number} [params.perPage] Jumlah record per halaman
- * @returns {Promise<ApiSuccessEnvelope<SensorData[]>>}
+ * @returns {Promise<ApiSuccessResponse<SensorData[]>>}
  */
 export async function getSensorDataHistory({
   deviceId,

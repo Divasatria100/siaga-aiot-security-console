@@ -63,9 +63,23 @@
  */
 
 /**
+ * Payload POST /api/v1/devices/{device_id}/sensor-data (API Spec §6.2.1).
+ */
+/**
+ * @typedef {object} SensorDataInput
+ * @property {string} recorded_at Timestamp ISO 8601
+ * @property {number} temperature Nilai suhu
+ * @property {number} humidity Nilai kelembapan
+ * @property {boolean} motion Status gerakan
+ * @property {number} light Intensitas cahaya
+ * @property {boolean} obstacle Status obstacle
+ * @property {'NORMAL'|'WARNING'|'DANGER'} status Status sistem
+ */
+
+/**
  * Envelope respons berhasil sesuai API Specification Bab 9.1.
  * @template T
- * @typedef {object} ApiSuccessEnvelope
+ * @typedef {object} ApiSuccessResponse
  * @property {true} success
  * @property {T} data
  * @property {PaginationMeta} [meta]
@@ -74,7 +88,7 @@
 
 /**
  * Envelope respons gagal sesuai API Specification Bab 9.2.
- * @typedef {object} ApiErrorEnvelope
+ * @typedef {object} ApiErrorResponse
  * @property {false} success
  * @property {{ code: string, message: string, details: object }} error
  */

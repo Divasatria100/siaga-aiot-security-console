@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "smoke:api": "vite build --ssr scripts/api-smoke.mjs --outDir .tmp-smoke --emptyOutDir && node .tmp-smoke/api-smoke.js",
+    "smoke:polling": "node scripts/polling-race.mjs"
   },
   "dependencies": {
     "axios": "^1.19.0",

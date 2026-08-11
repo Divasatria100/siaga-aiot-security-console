@@ -3,7 +3,7 @@ import { DEFAULT_PER_PAGE } from '@/config/env'
 
 /**
  * @typedef {import('@/types').Alert} Alert
- * @typedef {import('@/types').ApiSuccessEnvelope} ApiSuccessEnvelope
+ * @typedef {import('@/types').ApiSuccessResponse} ApiSuccessResponse
  */
 
 /**
@@ -16,7 +16,7 @@ import { DEFAULT_PER_PAGE } from '@/config/env'
  * @param {string} [params.endDate] Akhir rentang (ISO 8601)
  * @param {number} [params.page] Nomor halaman
  * @param {number} [params.perPage] Jumlah record per halaman
- * @returns {Promise<ApiSuccessEnvelope<Alert[]>>}
+ * @returns {Promise<ApiSuccessResponse<Alert[]>>}
  */
 export async function getAlerts({
   deviceId,
@@ -42,7 +42,7 @@ export async function getAlerts({
  * GET /api/v1/alerts/{id} — detail satu alert beserta sensor pemicunya.
  *
  * @param {number} id Primary key alert
- * @returns {Promise<ApiSuccessEnvelope<Alert>>}
+ * @returns {Promise<ApiSuccessResponse<Alert>>}
  */
 export async function getAlert(id) {
   return apiClient.get(`/alerts/${id}`)
