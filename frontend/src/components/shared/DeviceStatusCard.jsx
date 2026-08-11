@@ -8,8 +8,12 @@ import { formatRelativeTime } from '@/utils/format'
  * device_id, status konektivitas, waktu terakhir terlihat, dan status
  * sistem terkini. Dipakai pada Dashboard Page dan Devices Page.
  *
+ * Catatan: pada response GET /api/v1/system/status, `devices[]` tidak
+ * menyertakan field `name`, sehingga nama diturunkan dari `device_id`
+ * bila tidak tersedia (tanpa mengasumsikan field yang tidak ada di API).
+ *
  * @param {object} props
- * @param {import('@/types').Device} props.device Data device
+ * @param {import('@/types').Device|import('@/types').SystemDeviceStatus} props.device Data device
  * @param {'NORMAL'|'WARNING'|'DANGER'|null} [props.latestStatus] Status sistem terkini
  * @param {() => void} [props.onClick] Aksi saat kartu diklik (opsional)
  * @param {string} [props.className]
@@ -18,6 +22,7 @@ export function DeviceStatusCard({ device, latestStatus = null, onClick, classNa
   if (!device) return null
 
   const interactive = typeof onClick === 'function'
+  const displayName = device.name || device.device_id
 
   return (
     <Card
@@ -38,8 +43,10 @@ export function DeviceStatusCard({ device, latestStatus = null, onClick, classNa
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <p className="truncate text-sm font-semibold">{device.name}</p>
-          <p className="font-mono text-xs text-muted-foreground">{device.device_id}</p>
+          <p className="truncate text-sm font-semibold">{displayName}</p>
+          {device.name && (
+            <p className="font-mono text-xs text-muted-foreground">{device.device_id}</p>
+          )}
         </div>
         <StatusBadge kind="device" status={device.status} />
       </div>

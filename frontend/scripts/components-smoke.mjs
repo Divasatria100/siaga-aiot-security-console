@@ -10,6 +10,7 @@
 import assert from 'node:assert/strict'
 import { createElement as h } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { MemoryRouter } from 'react-router-dom'
 
 // Polyfill minimal agar ResponsiveContainer (recharts) dapat di-SSR.
 if (!globalThis.ResizeObserver) {
@@ -42,6 +43,7 @@ import { DataTable } from '@/components/shared/DataTable'
 import { Pagination } from '@/components/shared/Pagination'
 import { Chart } from '@/components/shared/Chart'
 import { ChartTooltip } from '@/components/shared/ChartTooltip'
+import DashboardPage, { DashboardContent } from '@/pages/Dashboard'
 
 const render = (element) => renderToStaticMarkup(element)
 
@@ -242,6 +244,49 @@ function run() {
   assert.ok(typeof areaHtml === 'string' && areaHtml.length > 0)
   assert.ok(typeof barHtml === 'string' && barHtml.length > 0)
   console.log('✓ Chart (line/area/bar SSR)')
+
+  // 13. Dashboard Page — render awal (loading state) tanpa error
+  const dashPage = render(h(MemoryRouter, null, h(DashboardPage)))
+  assert.ok(dashPage.includes('Memuat status sistem'))
+  assert.ok(dashPage.includes('Dashboard'))
+  console.log('✓ Dashboard Page (SSR initial/loading)')
+
+  // 14. DashboardContent — success state (summary + device cards)
+  const sysOk = {
+    total_devices: 3,
+    online_devices: 2,
+    offline_devices: 1,
+    devices: [
+      { device_id: 'SIAGA-001', status: 'online', latest_status: 'WARNING', last_seen_at: new Date().toISOString() },
+      { device_id: 'SIAGA-002', status: 'online', latest_status: 'NORMAL', last_seen_at: new Date(Date.now() - 2 * 60 * 1000).toISOString() },
+      { device_id: 'SIAGA-003', status: 'offline', latest_status: null, last_seen_at: null },
+    ],
+  }
+  const okHtml = render(h(DashboardContent, { system: sysOk, onSelectDevice: () => {} }))
+  assert.ok(okHtml.includes('Total Device'))
+  assert.ok(okHtml.includes('Device Online'))
+  assert.ok(okHtml.includes('Device Offline'))
+  assert.ok(okHtml.includes('Device Overview'))
+  assert.ok(okHtml.includes('SIAGA-001'))
+  assert.ok(okHtml.includes('SIAGA-002'))
+  assert.ok(okHtml.includes('SIAGA-003'))
+  assert.ok(okHtml.includes('Online'))
+  assert.ok(okHtml.includes('Offline'))
+  assert.ok(okHtml.includes('Warning'))
+  assert.ok(!okHtml.includes('Belum ada device'))
+  console.log('✓ DashboardContent (success + device cards)')
+
+  // 15. DashboardContent — empty state (total_devices = 0)
+  const sysEmpty = { total_devices: 0, online_devices: 0, offline_devices: 0, devices: [] }
+  const emptyHtml = render(h(DashboardContent, { system: sysEmpty, onSelectDevice: () => {} }))
+  assert.ok(emptyHtml.includes('Belum ada device'))
+  console.log('✓ DashboardContent (empty state)')
+
+  // 16. DashboardContent — stale data saat polling gagal
+  const staleHtml = render(h(DashboardContent, { system: sysOk, error: { message: 'offline' }, onSelectDevice: () => {} }))
+  assert.ok(staleHtml.includes('menampilkan data terakhir'))
+  assert.ok(staleHtml.includes('SIAGA-001'))
+  console.log('✓ DashboardContent (stale data + error notice)')
 
   console.log('\nSMOKE PASSED — all shared components render OK')
 }
