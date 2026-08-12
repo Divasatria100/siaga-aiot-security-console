@@ -6,6 +6,7 @@ import { useDevice } from '@/hooks/useDevice'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { DataTable } from '@/components/shared/DataTable'
 import { Pagination } from '@/components/shared/Pagination'
+import { FilterField } from '@/components/shared/FilterField'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'
@@ -241,12 +242,17 @@ export function DevicesContent({
  * DeviceFilters — filter bar Devices: hanya status konektivitas
  * (online/offline). Filter dilakukan server-side oleh API; murni
  * presentational. Perubahan filter me-reset halaman ke 1.
+ *
+ * Menggunakan shared `FilterField` (planning §5.1) sehingga tidak ada
+ * implementasi filter control yang duplikatif. Layout memakai lebar
+ * proporsional (max-w-xs) agar satu-satunya kontrol tidak "mengambang" di
+ * grid lebar (planning §4.5 / P3).
  */
 function DeviceFilters({ status, onStatusChange }) {
-  const controlClass =
-    'h-9 w-full rounded-control border border-border bg-surface/40 px-3 font-mono text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-50'
-  const labelClass =
-    'block font-mono text-xs font-semibold uppercase tracking-widest text-muted-foreground'
+  const statusOptions = Object.values(DEVICE_STATUS).map((value) => ({
+    value,
+    label: DEVICE_STATUS_LABEL[value],
+  }))
 
   return (
     <Card>
@@ -256,27 +262,16 @@ function DeviceFilters({ status, onStatusChange }) {
           Filter daftar perangkat berdasarkan status konektivitas.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-1.5">
-            <label htmlFor="devices-status" className={labelClass}>
-              Status
-            </label>
-            <select
-              id="devices-status"
-              value={status}
-              onChange={(event) => onStatusChange(event.target.value)}
-              className={controlClass}
-            >
-              <option value="">Semua</option>
-              {Object.entries(DEVICE_STATUS).map(([key, value]) => (
-                <option key={key} value={value}>
-                  {DEVICE_STATUS_LABEL[value]}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+      <CardContent>
+        <FilterField
+          id="devices-status"
+          label="Status"
+          value={status}
+          onChange={onStatusChange}
+          options={statusOptions}
+          placeholder="Semua"
+          className="w-full max-w-xs"
+        />
       </CardContent>
     </Card>
   )

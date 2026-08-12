@@ -46,6 +46,7 @@ import { Pagination } from '@/components/shared/Pagination'
 import { Chart } from '@/components/shared/Chart'
 import { ChartTooltip } from '@/components/shared/ChartTooltip'
 import { AlertSeverityChart } from '@/components/shared/AlertSeverityChart'
+import { FilterField } from '@/components/shared/FilterField'
 import { ApiError } from '@/lib/axios'
 import { sortAlertsBySeverity, countAlertsByStatus } from '@/utils/alerts'
 import DashboardPage, { DashboardContent } from '@/pages/Dashboard'
@@ -333,6 +334,68 @@ function run() {
   )
   assert.deepEqual(countAlertsByStatus([]), { WARNING: 0, DANGER: 0 })
   console.log('✓ sortAlertsBySeverity + countAlertsByStatus (utilities)')
+
+  // 12f. FilterField — select dengan label mono uppercase + opsi
+  const statusOptions = [
+    { value: 'online', label: 'Online' },
+    { value: 'offline', label: 'Offline' },
+  ]
+  const fieldSelect = render(
+    h(FilterField, {
+      id: 'devices-status',
+      label: 'Status',
+      value: 'online',
+      onChange: () => {},
+      options: statusOptions,
+    })
+  )
+  assert.ok(fieldSelect.includes('devices-status'))
+  assert.ok(fieldSelect.includes('>Status<'))
+  assert.ok(fieldSelect.includes('uppercase tracking-widest'))
+  assert.ok(fieldSelect.includes('Online'))
+  assert.ok(fieldSelect.includes('Offline'))
+  assert.ok(fieldSelect.includes('>Semua<'))
+  assert.ok(fieldSelect.includes('selected'))
+
+  // 12g. FilterField — date input + min/max + disabled + loadingOptions
+  const fieldDate = render(
+    h(FilterField, {
+      id: 'devices-start-date',
+      label: 'Tanggal Awal',
+      type: 'date',
+      value: '2026-07-01',
+      onChange: () => {},
+      min: '2026-07-01',
+      max: '2026-07-31',
+    })
+  )
+  assert.ok(fieldDate.includes('type="date"'))
+  assert.ok(fieldDate.includes('min="2026-07-01"'))
+  assert.ok(fieldDate.includes('max="2026-07-31"'))
+  assert.ok(fieldDate.includes('Tanggal Awal'))
+  const fieldLoading = render(
+    h(FilterField, {
+      id: 'devices-status',
+      label: 'Status',
+      value: '',
+      onChange: () => {},
+      options: [],
+      loadingOptions: true,
+    })
+  )
+  assert.ok(fieldLoading.includes('Memuat…'))
+  const fieldDisabled = render(
+    h(FilterField, {
+      id: 'devices-status',
+      label: 'Status',
+      value: '',
+      onChange: () => {},
+      options: [],
+      disabled: true,
+    })
+  )
+  assert.ok(fieldDisabled.includes('disabled'))
+  console.log('✓ FilterField (select/date/loading/disabled)')
 
   // 13. Dashboard Page — render awal (loading state) tanpa error
   const dashPage = render(h(MemoryRouter, null, h(DashboardPage)))
@@ -1047,7 +1110,13 @@ function run() {
   assert.ok(devicesOk.includes('Offline'))
   assert.ok(devicesOk.includes('Terakhir Terlihat'))
   assert.ok(devicesOk.includes('Menampilkan 1–2 dari 2 data'))
-  console.log('✓ DevicesContent (list success + pagination)')
+
+  // 37b. DevicesContent — filter memakai FilterField dengan lebar proporsional
+  assert.ok(devicesOk.includes('id="devices-status"'))
+  assert.ok(devicesOk.includes('max-w-xs'))
+  assert.ok(devicesOk.includes('>Semua<'))
+  assert.ok(!devicesOk.includes('lg:grid-cols-4'))
+  console.log('✓ DevicesContent (list success + pagination + FilterField width)')
 
   // 38. DevicesContent — empty result (dibedakan tanpa/ada filter)
   const devicesEmpty = render(
