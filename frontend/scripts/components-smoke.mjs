@@ -48,6 +48,8 @@ import DashboardPage, { DashboardContent } from '@/pages/Dashboard'
 import MonitoringPage from '@/pages/Monitoring'
 import { MonitoringContent, SensorGrid } from '@/pages/Monitoring/MonitoringView'
 import HistoricalDataPage, { HistoricalDataContent } from '@/pages/HistoricalData'
+import AlertsPage, { AlertsContent } from '@/pages/Alerts'
+import DevicesPage, { DevicesContent } from '@/pages/Devices'
 
 const render = (element) => renderToStaticMarkup(element)
 
@@ -519,6 +521,384 @@ function run() {
   assert.ok(histStale.includes('Tren Sensor'))
   assert.ok(histStale.includes('Detail Riwayat'))
   console.log('✓ HistoricalDataContent (stale data + notice)')
+
+  // 29. Alerts Page — SSR initial (list loading, filter belum terisi)
+  const alertsPage = render(h(MemoryRouter, null, h(AlertsPage)))
+  assert.ok(alertsPage.includes('Alerts'))
+  assert.ok(alertsPage.includes('Filter Alert'))
+  assert.ok(alertsPage.includes('Tanggal Awal'))
+  assert.ok(alertsPage.includes('Tanggal Akhir'))
+  assert.ok(alertsPage.includes('Status'))
+  console.log('✓ Alerts Page (SSR initial/loading)')
+
+  const alertsRows = [
+    { id: 1, device_id: 'SIAGA-001', sensor_data_id: 10448, status: 'DANGER', triggered_at: '2026-07-31T08:45:00Z', created_at: '2026-07-31T08:45:00Z' },
+    { id: 2, device_id: 'SIAGA-002', sensor_data_id: 10449, status: 'WARNING', triggered_at: '2026-07-31T08:50:00Z', created_at: '2026-07-31T08:50:00Z' },
+  ]
+  const alertsMeta = { current_page: 1, per_page: 50, total: 2 }
+
+  // 30. AlertsContent — list success + pagination
+  const alertsOk = render(
+    h(AlertsContent, {
+      devices: [device],
+      alerts: alertsRows,
+      meta: alertsMeta,
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+      onDeviceChange: noop,
+      onStatusChange: noop,
+      onStartDateChange: noop,
+      onEndDateChange: noop,
+      onSelectAlert: noop,
+      onDetailClose: noop,
+      onDetailRetry: noop,
+    })
+  )
+  assert.ok(alertsOk.includes('#1'))
+  assert.ok(alertsOk.includes('SIAGA-001'))
+  assert.ok(alertsOk.includes('Danger'))
+  assert.ok(alertsOk.includes('Warning'))
+  assert.ok(alertsOk.includes('Waktu Kejadian'))
+  assert.ok(alertsOk.includes('31 Jul 2026'))
+  assert.ok(alertsOk.includes('Menampilkan 1–2 dari 2 data'))
+  console.log('✓ AlertsContent (list success + pagination)')
+
+  // 31. AlertsContent — empty result (dibedakan tanpa/ada filter)
+  const alertsEmpty = render(
+    h(AlertsContent, {
+      alerts: [],
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+      onDeviceChange: noop,
+      onStatusChange: noop,
+      onStartDateChange: noop,
+      onEndDateChange: noop,
+      onSelectAlert: noop,
+      onDetailClose: noop,
+      onDetailRetry: noop,
+    })
+  )
+  assert.ok(alertsEmpty.includes('Belum ada alert'))
+  const alertsEmptyFiltered = render(
+    h(AlertsContent, {
+      status: 'DANGER',
+      alerts: [],
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+      onDeviceChange: noop,
+      onStatusChange: noop,
+      onStartDateChange: noop,
+      onEndDateChange: noop,
+      onSelectAlert: noop,
+      onDetailClose: noop,
+      onDetailRetry: noop,
+    })
+  )
+  assert.ok(alertsEmptyFiltered.includes('Tidak ada alert yang sesuai dengan filter'))
+  console.log('✓ AlertsContent (empty without/with filter)')
+
+  // 32. AlertsContent — error jaringan (ErrorState + retry)
+  const alertsError = render(
+    h(AlertsContent, {
+      alerts: null,
+      loading: false,
+      error: networkErr,
+      onPageChange: noop,
+      onRetry: noop,
+      onDeviceChange: noop,
+      onStatusChange: noop,
+      onStartDateChange: noop,
+      onEndDateChange: noop,
+      onSelectAlert: noop,
+      onDetailClose: noop,
+      onDetailRetry: noop,
+    })
+  )
+  assert.ok(alertsError.includes('Tidak dapat terhubung ke server'))
+  assert.ok(alertsError.includes('Coba lagi'))
+  console.log('✓ AlertsContent (network error + retry)')
+
+  // 33. AlertsContent — 422 validation details (ApiError.details)
+  const validationError = new ApiError({
+    status: 422,
+    code: 'VALIDATION_ERROR',
+    message: 'The given data was invalid.',
+    details: { status: ['The selected status is invalid. It must be one of WARNING, DANGER.'] },
+  })
+  const alerts422 = render(
+    h(AlertsContent, {
+      alerts: null,
+      loading: false,
+      error: validationError,
+      onPageChange: noop,
+      onRetry: noop,
+      onDeviceChange: noop,
+      onStatusChange: noop,
+      onStartDateChange: noop,
+      onEndDateChange: noop,
+      onSelectAlert: noop,
+      onDetailClose: noop,
+      onDetailRetry: noop,
+    })
+  )
+  assert.ok(alerts422.includes('VALIDATION_ERROR'))
+  assert.ok(alerts422.includes('The selected status is invalid.'))
+  console.log('✓ AlertsContent (422 validation details)')
+
+  // 34. Alert detail — success + nested sensor_data
+  const alertDetail = {
+    id: 5,
+    device_id: 'SIAGA-001',
+    sensor_data_id: 10460,
+    status: 'WARNING',
+    triggered_at: '2026-07-31T09:15:00Z',
+    created_at: '2026-07-31T09:15:00Z',
+    sensor_data: { temperature: 29.5, humidity: 68.2, motion: true, light: 120.0, obstacle: false },
+  }
+  const alertsDetail = render(
+    h(AlertsContent, {
+      devices: [device],
+      alerts: alertsRows,
+      meta: alertsMeta,
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+      onDeviceChange: noop,
+      onStatusChange: noop,
+      onStartDateChange: noop,
+      onEndDateChange: noop,
+      onSelectAlert: noop,
+      onDetailClose: noop,
+      onDetailRetry: noop,
+      alertId: 5,
+      detail: alertDetail,
+      detailLoading: false,
+      detailError: null,
+    })
+  )
+  assert.ok(alertsDetail.includes('Alert Detail'))
+  assert.ok(alertsDetail.includes('Kejadian #5'))
+  assert.ok(alertsDetail.includes('SIAGA-001'))
+  assert.ok(alertsDetail.includes('Suhu'))
+  assert.ok(alertsDetail.includes('29,5'))
+  assert.ok(alertsDetail.includes('68,2'))
+  assert.ok(alertsDetail.includes('Ada'))
+  assert.ok(alertsDetail.includes('Tidak'))
+  assert.ok(alertsDetail.includes('Tutup detail alert'))
+  console.log('✓ Alert detail (success + nested sensor_data)')
+
+  // 35. Alert detail — 404 (EmptyState, bukan error generic)
+  const alertsDetail404 = render(
+    h(AlertsContent, {
+      alerts: alertsRows,
+      meta: alertsMeta,
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+      onDeviceChange: noop,
+      onStatusChange: noop,
+      onStartDateChange: noop,
+      onEndDateChange: noop,
+      onSelectAlert: noop,
+      onDetailClose: noop,
+      onDetailRetry: noop,
+      alertId: 999,
+      detail: null,
+      detailLoading: false,
+      detailError: notFound,
+    })
+  )
+  assert.ok(alertsDetail404.includes('Alert tidak ditemukan'))
+  console.log('✓ Alert detail (404 not found)')
+
+  // 36. Devices Page — SSR initial (list loading, filter belum terisi)
+  const devicesPage = render(h(MemoryRouter, null, h(DevicesPage)))
+  assert.ok(devicesPage.includes('Devices'))
+  assert.ok(devicesPage.includes('Filter Device'))
+  assert.ok(devicesPage.includes('Status'))
+  console.log('✓ Devices Page (SSR initial/loading)')
+
+  const deviceRows = [
+    { device_id: 'SIAGA-001', name: 'Ruang Server Utama', status: 'online', last_seen_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(), created_at: '2026-06-01T08:00:00Z', updated_at: new Date().toISOString() },
+    { device_id: 'SIAGA-002', name: 'Lobi Utama', status: 'offline', last_seen_at: '2026-07-30T10:00:00Z', created_at: '2026-06-02T08:00:00Z', updated_at: '2026-07-30T10:00:00Z' },
+  ]
+  const devicesMeta = { current_page: 1, per_page: 50, total: 2 }
+
+  // 37. DevicesContent — list success + pagination
+  const devicesOk = render(
+    h(DevicesContent, {
+      status: '',
+      onStatusChange: noop,
+      devices: deviceRows,
+      meta: devicesMeta,
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+      onSelectDevice: noop,
+      onDetailClose: noop,
+      onDetailRetry: noop,
+      onOpenMonitoring: noop,
+    })
+  )
+  assert.ok(devicesOk.includes('SIAGA-001'))
+  assert.ok(devicesOk.includes('Ruang Server Utama'))
+  assert.ok(devicesOk.includes('SIAGA-002'))
+  assert.ok(devicesOk.includes('Lobi Utama'))
+  assert.ok(devicesOk.includes('Online'))
+  assert.ok(devicesOk.includes('Offline'))
+  assert.ok(devicesOk.includes('Terakhir Terlihat'))
+  assert.ok(devicesOk.includes('Menampilkan 1–2 dari 2 data'))
+  console.log('✓ DevicesContent (list success + pagination)')
+
+  // 38. DevicesContent — empty result (dibedakan tanpa/ada filter)
+  const devicesEmpty = render(
+    h(DevicesContent, {
+      status: '',
+      onStatusChange: noop,
+      devices: [],
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+      onSelectDevice: noop,
+      onDetailClose: noop,
+      onDetailRetry: noop,
+      onOpenMonitoring: noop,
+    })
+  )
+  assert.ok(devicesEmpty.includes('Belum ada device terdaftar'))
+  const devicesEmptyFiltered = render(
+    h(DevicesContent, {
+      status: 'offline',
+      onStatusChange: noop,
+      devices: [],
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+      onSelectDevice: noop,
+      onDetailClose: noop,
+      onDetailRetry: noop,
+      onOpenMonitoring: noop,
+    })
+  )
+  assert.ok(devicesEmptyFiltered.includes('Tidak ada device yang sesuai dengan filter'))
+  console.log('✓ DevicesContent (empty without/with filter)')
+
+  // 39. DevicesContent — error jaringan (ErrorState + retry)
+  const devicesError = render(
+    h(DevicesContent, {
+      status: '',
+      onStatusChange: noop,
+      devices: null,
+      loading: false,
+      error: networkErr,
+      onPageChange: noop,
+      onRetry: noop,
+      onSelectDevice: noop,
+      onDetailClose: noop,
+      onDetailRetry: noop,
+      onOpenMonitoring: noop,
+    })
+  )
+  assert.ok(devicesError.includes('Tidak dapat terhubung ke server'))
+  assert.ok(devicesError.includes('Coba lagi'))
+  console.log('✓ DevicesContent (network error + retry)')
+
+  // 40. DevicesContent — stale data saat refetch gagal
+  const devicesStale = render(
+    h(DevicesContent, {
+      status: '',
+      onStatusChange: noop,
+      devices: deviceRows,
+      meta: devicesMeta,
+      loading: false,
+      error: { message: 'timeout' },
+      onPageChange: noop,
+      onRetry: noop,
+      onSelectDevice: noop,
+      onDetailClose: noop,
+      onDetailRetry: noop,
+      onOpenMonitoring: noop,
+    })
+  )
+  assert.ok(devicesStale.includes('menampilkan data terakhir'))
+  assert.ok(devicesStale.includes('SIAGA-001'))
+  console.log('✓ DevicesContent (stale data + notice)')
+
+  // 41. Device detail — success + timestamp + action monitoring
+  const deviceDetail = {
+    device_id: 'SIAGA-001',
+    name: 'Ruang Server Utama',
+    status: 'offline',
+    last_seen_at: '2026-07-30T10:00:00Z',
+    created_at: '2026-06-01T08:00:00Z',
+    updated_at: '2026-07-30T10:00:00Z',
+  }
+  const deviceDetailOk = render(
+    h(DevicesContent, {
+      status: '',
+      onStatusChange: noop,
+      devices: deviceRows,
+      meta: devicesMeta,
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+      onSelectDevice: noop,
+      onDetailClose: noop,
+      onDetailRetry: noop,
+      onOpenMonitoring: noop,
+      deviceId: 'SIAGA-001',
+      detail: deviceDetail,
+      detailLoading: false,
+      detailError: null,
+    })
+  )
+  assert.ok(deviceDetailOk.includes('Device Detail'))
+  assert.ok(deviceDetailOk.includes('Perangkat SIAGA-001'))
+  assert.ok(deviceDetailOk.includes('Ruang Server Utama'))
+  assert.ok(deviceDetailOk.includes('Offline'))
+  assert.ok(deviceDetailOk.includes('Terakhir Terlihat'))
+  assert.ok(deviceDetailOk.includes('Terdaftar'))
+  assert.ok(deviceDetailOk.includes('Diperbarui'))
+  assert.ok(deviceDetailOk.includes('30 Jul 2026'))
+  assert.ok(deviceDetailOk.includes('Buka Monitoring'))
+  assert.ok(deviceDetailOk.includes('Tutup detail device'))
+  console.log('✓ Device detail (success + timestamps + monitoring action)')
+
+  // 42. Device detail — 404 (EmptyState, bukan error generic)
+  const deviceDetail404 = render(
+    h(DevicesContent, {
+      status: '',
+      onStatusChange: noop,
+      devices: deviceRows,
+      meta: devicesMeta,
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+      onSelectDevice: noop,
+      onDetailClose: noop,
+      onDetailRetry: noop,
+      onOpenMonitoring: noop,
+      deviceId: 'SIAGA-999',
+      detail: null,
+      detailLoading: false,
+      detailError: notFound,
+    })
+  )
+  assert.ok(deviceDetail404.includes('Device tidak ditemukan'))
+  console.log('✓ Device detail (404 not found)')
 
   console.log('\nSMOKE PASSED — all shared components render OK')
 }
