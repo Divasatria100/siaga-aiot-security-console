@@ -53,6 +53,7 @@ import { sortAlertsBySeverity, countAlertsByStatus } from '@/utils/alerts'
 import DashboardPage, { DashboardContent } from '@/pages/Dashboard'
 import MonitoringPage from '@/pages/Monitoring'
 import { MonitoringContent, SensorGrid } from '@/pages/Monitoring/MonitoringView'
+import { shouldScrollToDetail } from '@/utils/monitoring'
 import HistoricalDataPage, { HistoricalDataContent } from '@/pages/HistoricalData'
 import AlertsPage, { AlertsContent } from '@/pages/Alerts'
 import DevicesPage, { DevicesContent } from '@/pages/Devices'
@@ -663,6 +664,16 @@ function run() {
   assert.ok(detailSingle.includes('Data tren belum tersedia untuk 1 jam terakhir.'))
   assert.ok(!detailSingle.includes('Current'))
   console.log('✓ SensorTrendDetail (stats + chart, DESC input, empty <2 titik)')
+
+  // 18g. shouldScrollToDetail — auto-scroll hanya saat memilih/mengganti sensor,
+  // tidak saat menutup atau tanpa perubahan (logika murni, bebas dari scroll aktual)
+  assert.equal(shouldScrollToDetail(null, 'temperature'), true)
+  assert.equal(shouldScrollToDetail('temperature', 'humidity'), true)
+  assert.equal(shouldScrollToDetail('humidity', 'light'), true)
+  assert.equal(shouldScrollToDetail('temperature', null), false)
+  assert.equal(shouldScrollToDetail(null, null), false)
+  assert.equal(shouldScrollToDetail('temperature', 'temperature'), false)
+  console.log('✓ shouldScrollToDetail (open/switch/close/no-change)')
 
   // 19. MonitoringContent — device belum punya data sensor (404 latest)
   const notFound = new ApiError({ status: 404, code: 'NOT_FOUND', message: 'Sensor data tidak ditemukan' })

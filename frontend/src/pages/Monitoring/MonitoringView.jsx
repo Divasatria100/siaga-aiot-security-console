@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, Box, Droplets, Radio, Sun, Thermometer } from 'lucide-react'
 import { useDevices } from '@/hooks/useDevices'
 import { useDevice } from '@/hooks/useDevice'
@@ -23,6 +23,7 @@ import {
   formatSensorValue,
 } from '@/utils/format'
 import { SENSOR_LABELS, SENSOR_UNITS } from '@/config/constants'
+import { shouldScrollToDetail } from '@/utils/monitoring'
 
 /** Definisi sensor MVP dengan ikon (FDD Bab 3.3 & 7.2). */
 const SENSOR_ITEMS = [
@@ -126,6 +127,20 @@ function buildSensorTrendSeries(trend) {
       .filter((point) => typeof point.value === 'number')
   }
   return series
+}
+
+/**
+ * Deteksi preferensi pengguna untuk mengurangi gerakan (prefers-reduced-motion).
+ * Aman dipanggil saat SSR (window undefined) — hanya bernilai true di browser.
+ *
+ * @returns {boolean}
+ */
+function prefersReducedMotion() {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
 }
 
 /**
@@ -235,7 +250,9 @@ function DeviceStatusSkeleton() {
  * `activeSensor` adalah satu-satunya state UI lokal (drill-in detail tren);
  * berpindah device me-remount komponen (via key di MonitoringView) sehingga
  * detail otomatis tertutup. Tidak ada request API tambahan — detail memakai
- * data tren yang sudah dimuat `useRecentSensorTrend`.
+ * data tren yang sudah dimuat `useRecentSensorTrend`. Saat memilih/mengganti
+ * sensor, halaman auto-scroll (smooth, atau instant bila reduced-motion)
+ * ke detail agar grafik langsung terlihat.
  *
  * @param {object} props
  * @param {import('@/types').Device|null} props.device Data device
@@ -260,8 +277,28 @@ export function MonitoringContent({
   const deviceNotFound = isNotFoundError(deviceError)
   const latestNotFound = isNotFoundError(latestError)
   const [activeSensor, setActiveSensor] = useState(null)
+  const detailRef = useRef(null)
+  const prevActiveSensorRef = useRef(null)
 
   const trendSeries = useMemo(() => buildSensorTrendSeries(trend), [trend])
+
+  // Auto-scroll ke SensorTrendDetail hanya saat user memilih/mengganti sensor
+  // (null → sensor atau sensor A → sensor B). Tidak saat menutup (→ null),
+  // tidak pada mount awal, dan tidak saat polling/ganti device — berpindah
+  // device me-remount komponen sehingga effect ini ter-inisialisasi ulang.
+  useEffect(() => {
+    const prev = prevActiveSensorRef.current
+    prevActiveSensorRef.current = activeSensor
+
+    if (!shouldScrollToDetail(prev, activeSensor)) return
+    const node = detailRef.current
+    if (!node) return
+
+    node.scrollIntoView({
+      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+      block: 'start',
+    })
+  }, [activeSensor])
 
   return (
     <div className="space-y-6">
@@ -331,13 +368,14 @@ export function MonitoringContent({
               onSelectSensor={setActiveSensor}
             />
             {activeSensor && (
-              <SensorTrendDetail
-                className="mt-6"
-                label={SENSOR_LABELS[activeSensor]}
-                color={SENSOR_TREND_COLORS[activeSensor]}
-                unit={SENSOR_UNITS[activeSensor]}
-                series={trendSeries[activeSensor] ?? []}
-              />
+              <div ref={detailRef} className="mt-6">
+                <SensorTrendDetail
+                  label={SENSOR_LABELS[activeSensor]}
+                  color={SENSOR_TREND_COLORS[activeSensor]}
+                  unit={SENSOR_UNITS[activeSensor]}
+                  series={trendSeries[activeSensor] ?? []}
+                />
+              </div>
             )}
           </>
         ) : null}
