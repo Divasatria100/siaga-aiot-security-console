@@ -440,6 +440,98 @@ function run() {
   assert.ok(staleHtml.includes('SIAGA-001'))
   console.log('✓ DashboardContent (stale data + error notice)')
 
+  // 16a. DashboardContent + Recent Alerts — populated (reuse AlertCard)
+  const recentAlerts = [
+    { id: 512, device_id: 'SIAGA-001', sensor_data_id: 10452, status: 'DANGER', triggered_at: '2026-07-31T09:15:00Z', created_at: '2026-07-31T09:15:00Z' },
+    { id: 511, device_id: 'SIAGA-002', sensor_data_id: 10451, status: 'WARNING', triggered_at: '2026-07-31T08:50:00Z', created_at: '2026-07-31T08:50:00Z' },
+  ]
+  const alertsOkHtml = render(
+    h(DashboardContent, {
+      system: sysOk,
+      onSelectDevice: () => {},
+      alerts: recentAlerts,
+      alertsLoading: false,
+      alertsError: null,
+      onAlertsRetry: () => {},
+      onViewAllAlerts: () => {},
+    })
+  )
+  assert.ok(alertsOkHtml.includes('Recent Alerts'))
+  assert.ok(alertsOkHtml.includes('Lihat semua alert'))
+  assert.ok(alertsOkHtml.includes('SIAGA-001'))
+  assert.ok(alertsOkHtml.includes('Danger'))
+  assert.ok(alertsOkHtml.includes('Warning'))
+  assert.ok(alertsOkHtml.includes('31 Jul 2026'))
+  assert.ok(!alertsOkHtml.includes('Belum ada alert'))
+  assert.ok(alertsOkHtml.includes('Device Overview'))
+  console.log('✓ DashboardContent + Recent Alerts (populated via AlertCard)')
+
+  // 16b. DashboardContent + Recent Alerts — loading tanpa memblokir Device Overview
+  const alertsLoadingHtml = render(
+    h(DashboardContent, {
+      system: sysOk,
+      onSelectDevice: () => {},
+      alerts: null,
+      alertsLoading: true,
+      alertsError: null,
+      onAlertsRetry: () => {},
+      onViewAllAlerts: () => {},
+    })
+  )
+  assert.ok(alertsLoadingHtml.includes('Memuat alert terbaru'))
+  assert.ok(alertsLoadingHtml.includes('SIAGA-001'))
+  console.log('✓ DashboardContent + Recent Alerts (loading, Device Overview tetap tampil)')
+
+  // 16c. DashboardContent + Recent Alerts — error tidak memblokir Device Overview
+  const alertsErrorHtml = render(
+    h(DashboardContent, {
+      system: sysOk,
+      onSelectDevice: () => {},
+      alerts: null,
+      alertsLoading: false,
+      alertsError: { isNetworkError: true, message: 'offline' },
+      onAlertsRetry: () => {},
+      onViewAllAlerts: () => {},
+    })
+  )
+  assert.ok(alertsErrorHtml.includes('Tidak dapat terhubung ke server'))
+  assert.ok(alertsErrorHtml.includes('Coba lagi'))
+  assert.ok(alertsErrorHtml.includes('SIAGA-001'))
+  assert.ok(alertsErrorHtml.includes('Total Device'))
+  console.log('✓ DashboardContent + Recent Alerts (error tidak memblokir Device Overview)')
+
+  // 16d. DashboardContent + Recent Alerts — empty state
+  const alertsEmptyHtml = render(
+    h(DashboardContent, {
+      system: sysOk,
+      onSelectDevice: () => {},
+      alerts: [],
+      alertsLoading: false,
+      alertsError: null,
+      onAlertsRetry: () => {},
+      onViewAllAlerts: () => {},
+    })
+  )
+  assert.ok(alertsEmptyHtml.includes('Belum ada alert'))
+  assert.ok(alertsEmptyHtml.includes('SIAGA-001'))
+  console.log('✓ DashboardContent + Recent Alerts (empty state)')
+
+  // 16e. RecentAlerts — stale data saat refetch alert gagal
+  const alertsStaleHtml = render(
+    h(DashboardContent, {
+      system: sysOk,
+      onSelectDevice: () => {},
+      alerts: recentAlerts,
+      alertsLoading: false,
+      alertsError: { message: 'timeout' },
+      onAlertsRetry: () => {},
+      onViewAllAlerts: () => {},
+    })
+  )
+  assert.ok(alertsStaleHtml.includes('menampilkan data terakhir'))
+  assert.ok(alertsStaleHtml.includes('SIAGA-001'))
+  console.log('✓ DashboardContent + Recent Alerts (stale data + notice)')
+
   // 17. Monitoring Page — SSR initial (loading selector, belum pilih device)
   const mon = render(h(MemoryRouter, null, h(MonitoringPage)))
   assert.ok(mon.includes('Memuat daftar device'))

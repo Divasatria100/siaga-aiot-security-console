@@ -627,6 +627,49 @@ Why not included as mandatory: Berisiko menjadi "random statistics" bila tidak t
 
 ---
 
+Dashboard — Additional Enhancement
+
+ADD: Recent Alerts / Incidents Preview
+
+Purpose:
+Memberikan situational awareness terhadap alert terbaru langsung dari
+Dashboard tanpa menggantikan halaman Alerts.
+
+Data:
+GET /api/v1/alerts
+
+Implementation:
+Reuse existing useAlerts hook and AlertCard component.
+Fetch maximum 5 latest alerts.
+
+Layout:
+Dashboard lower section menggunakan two-column layout:
+- Device Overview
+- Recent Alerts
+
+Behavior:
+- Menampilkan 3–5 alert terbaru.
+- Severity menggunakan existing StatusBadge.
+- Menampilkan device, severity, dan triggered_at.
+- Empty state jika belum ada alert.
+- Error state tidak boleh memblokir Device Overview.
+- Tidak mengubah behavior halaman Alerts.
+
+Backend:
+No backend changes.
+
+Dependency:
+No new dependency.
+
+Priority:
+P1 / Medium-High.
+
+Not included:
+- Full alert management
+- Alert filtering
+- Alert detail management
+- New analytics chart
+
 ## 12. Final Design Principles
 
 1. Clarity over decoration.
