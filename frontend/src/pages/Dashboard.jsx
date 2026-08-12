@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { HardDrive, Wifi, WifiOff } from 'lucide-react'
+import { AlertTriangle, HardDrive, Wifi, WifiOff } from 'lucide-react'
 import { useSystemStatus } from '@/hooks/useSystemStatus'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { DashboardCard } from '@/components/shared/DashboardCard'
@@ -8,6 +8,10 @@ import { LoadingIndicator } from '@/components/shared/LoadingIndicator'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { formatRelativeTime } from '@/utils/format'
+import {
+  countAttentionDevices,
+  sortDevicesBySeverity,
+} from '@/utils/devices'
 
 /**
  * Dashboard Page (FDD Bab 7.1) — ringkasan kondisi sistem secara
@@ -86,6 +90,8 @@ export function DashboardContent({ system, error, onSelectDevice }) {
   const onlineDevices = system?.online_devices ?? 0
   const offlineDevices = system?.offline_devices ?? 0
   const devices = system?.devices ?? []
+  const attentionDevices = countAttentionDevices(devices)
+  const sortedDevices = sortDevicesBySeverity(devices)
 
   return (
     <>
@@ -100,7 +106,7 @@ export function DashboardContent({ system, error, onSelectDevice }) {
 
       <section
         aria-label="Ringkasan sistem"
-        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
         <DashboardCard
           label="Total Device"
@@ -121,6 +127,13 @@ export function DashboardContent({ system, error, onSelectDevice }) {
           tone="offline"
           description="Tidak terhubung"
           icon={<WifiOff className="h-5 w-5" aria-hidden="true" />}
+        />
+        <DashboardCard
+          label="Perlu Perhatian"
+          value={attentionDevices}
+          tone="warning"
+          description="Device berstatus Warning atau Danger"
+          icon={<AlertTriangle className="h-5 w-5" aria-hidden="true" />}
         />
       </section>
 
@@ -149,7 +162,7 @@ export function DashboardContent({ system, error, onSelectDevice }) {
           />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {devices.map((device) => (
+            {sortedDevices.map((device) => (
               <DeviceStatusCard
                 key={device.device_id}
                 device={device}

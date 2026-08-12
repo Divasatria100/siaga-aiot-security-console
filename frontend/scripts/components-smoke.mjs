@@ -37,6 +37,8 @@ import { ErrorState } from '@/components/shared/ErrorState'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { DashboardCard } from '@/components/shared/DashboardCard'
 import { SensorCard } from '@/components/shared/SensorCard'
+import { SensorTrendSparkline } from '@/components/shared/SensorTrendSparkline'
+import { downsampleRecords } from '@/utils/series'
 import { DeviceStatusCard } from '@/components/shared/DeviceStatusCard'
 import { AlertCard } from '@/components/shared/AlertCard'
 import { DataTable } from '@/components/shared/DataTable'
@@ -165,6 +167,19 @@ function run() {
   assert.ok(sensor.includes('29.5'))
   assert.ok(sensor.includes('°C'))
   console.log('✓ SensorCard')
+
+  // 6b. SensorTrendSparkline — minimal, non-interaktif, degradasi lembut
+  const sparkData = [
+    { recorded_at: '09:00', value: 28.1 },
+    { recorded_at: '09:05', value: 29.5 },
+    { recorded_at: '09:10', value: 30.2 },
+  ]
+  const sparkHtml = render(h(SensorTrendSparkline, { data: sparkData, color: '#f97316' }))
+  assert.ok(sparkHtml.includes('Tren nilai naik'))
+  assert.ok(sparkHtml.includes('aria-hidden="true"'))
+  assert.equal(render(h(SensorTrendSparkline, { data: [] })), '')
+  assert.equal(render(h(SensorTrendSparkline, { data: [{ recorded_at: '09:00', value: 28 }] })), '')
+  console.log('✓ SensorTrendSparkline (trend label + aria-hidden + minimal data)')
 
   // 7. DeviceStatusCard
   const devCard = render(h(DeviceStatusCard, { device, latestStatus: 'WARNING' }))
@@ -322,6 +337,27 @@ function run() {
   assert.ok(sensorHtml.includes('lux'))
   console.log('✓ SensorGrid (labels, id-ID values, Ada/Tidak, units)')
 
+  // 18b. SensorGrid — sparkline hanya untuk 3 sensor kontinu
+  const trendRows = [
+    { recorded_at: '2026-07-31T09:00:00Z', temperature: 28.1, humidity: 65.4, light: 100 },
+    { recorded_at: '2026-07-31T09:10:00Z', temperature: 29.5, humidity: 68.2, light: 120 },
+  ]
+  const trendHtml = render(
+    h(SensorGrid, {
+      sensor: { temperature: 29.5, humidity: 68.2, light: 120, motion: true, obstacle: false },
+      trend: trendRows,
+    })
+  )
+  assert.equal((trendHtml.match(/Tren nilai naik/g) || []).length, 3)
+  const noTrendHtml = render(
+    h(SensorGrid, {
+      sensor: { temperature: 29.5, humidity: 68.2, light: 120, motion: true, obstacle: false },
+      trend: [],
+    })
+  )
+  assert.ok(!noTrendHtml.includes('Tren nilai'))
+  console.log('✓ SensorGrid (sparkline hanya pada 3 sensor kontinu)')
+
   // 19. MonitoringContent — device belum punya data sensor (404 latest)
   const notFound = new ApiError({ status: 404, code: 'NOT_FOUND', message: 'Sensor data tidak ditemukan' })
   const noSensor = render(
@@ -404,6 +440,10 @@ function run() {
     { id: 2, device_id: 'SIAGA-001', recorded_at: '2026-07-31T09:05:00Z', temperature: 29.8, humidity: 64.1, motion: true, light: 135.0, obstacle: false, status: 'WARNING' },
   ]
   const historyMeta = { current_page: 1, per_page: 50, total: 2 }
+  const chartRecords = [
+    ...historyRecords,
+    { id: 3, device_id: 'SIAGA-001', recorded_at: '2026-07-31T09:10:00Z', temperature: 30.1, humidity: 62.8, motion: false, light: 140.0, obstacle: false, status: 'WARNING' },
+  ]
   const noop = () => {}
 
   // 24. HistoricalDataContent — success (chart + table + pagination)
@@ -418,10 +458,16 @@ function run() {
       onEndDateChange: noop,
       records: historyRecords,
       meta: historyMeta,
+      page: 1,
       loading: false,
       error: null,
       onPageChange: noop,
       onRetry: noop,
+      chartRecords,
+      chartLoading: false,
+      chartError: null,
+      chartTruncated: false,
+      onChartRetry: noop,
     })
   )
   assert.ok(histOk.includes('Tren Sensor'))
@@ -434,7 +480,17 @@ function run() {
   assert.ok(histOk.includes('Ada'))
   assert.ok(histOk.includes('Tidak'))
   assert.ok(histOk.includes('Menampilkan 1–2 dari 2 data'))
+  assert.ok(!histOk.includes('Menampilkan tren berdasarkan sampel data'))
   console.log('✓ HistoricalDataContent (success + chart + table)')
+
+  // 24b. downsampleRecords — mengurangi ukuran, mempertahankan titik awal/akhir
+  const series = Array.from({ length: 10 }, (_, i) => ({ t: i, v: i }))
+  const sampled = downsampleRecords(series, 4)
+  assert.equal(sampled.length, 4)
+  assert.equal(sampled[0].v, 0)
+  assert.equal(sampled[3].v, 9)
+  assert.deepEqual(downsampleRecords(series, 100), series)
+  console.log('✓ downsampleRecords (ukuran + titik awal/akhir)')
 
   // 25. HistoricalDataContent — tidak ada data dalam rentang (200 kosong)
   const histEmpty = render(
@@ -448,10 +504,16 @@ function run() {
       onEndDateChange: noop,
       records: [],
       meta: { current_page: 1, per_page: 50, total: 0 },
+      page: 1,
       loading: false,
       error: null,
       onPageChange: noop,
       onRetry: noop,
+      chartRecords: [],
+      chartLoading: false,
+      chartError: null,
+      chartTruncated: false,
+      onChartRetry: noop,
     })
   )
   assert.ok(histEmpty.includes('Tidak ada data dalam rentang waktu ini'))
@@ -468,6 +530,7 @@ function run() {
       onStartDateChange: noop,
       onEndDateChange: noop,
       records: null,
+      page: 1,
       loading: false,
       error: null,
       onPageChange: noop,
@@ -489,6 +552,7 @@ function run() {
       onEndDateChange: noop,
       records: null,
       meta: null,
+      page: 1,
       loading: false,
       error: networkErr,
       onPageChange: noop,
@@ -511,16 +575,137 @@ function run() {
       onEndDateChange: noop,
       records: historyRecords,
       meta: historyMeta,
+      page: 1,
       loading: false,
       error: { message: 'timeout' },
       onPageChange: noop,
       onRetry: noop,
+      chartRecords,
+      chartLoading: false,
+      chartError: null,
+      chartTruncated: false,
+      onChartRetry: noop,
     })
   )
   assert.ok(histStale.includes('menampilkan data terakhir'))
   assert.ok(histStale.includes('Tren Sensor'))
   assert.ok(histStale.includes('Detail Riwayat'))
   console.log('✓ HistoricalDataContent (stale data + notice)')
+
+  // 28b. HistoricalDataContent — chart loading (skeleton) saat tabel sudah siap
+  const histChartLoading = render(
+    h(HistoricalDataContent, {
+      devices: [device],
+      deviceId: 'SIAGA-001',
+      startDate: '2026-07-01',
+      endDate: '2026-07-31',
+      onDeviceChange: noop,
+      onStartDateChange: noop,
+      onEndDateChange: noop,
+      records: historyRecords,
+      meta: historyMeta,
+      page: 1,
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+      chartRecords: null,
+      chartLoading: true,
+      chartError: null,
+      chartTruncated: false,
+      onChartRetry: noop,
+    })
+  )
+  assert.ok(histChartLoading.includes('animate-pulse'))
+  assert.ok(histChartLoading.includes('Detail Riwayat'))
+  console.log('✓ HistoricalDataContent (chart loading skeleton)')
+
+  // 28c. HistoricalDataContent — chart gagal dimuat, tabel tetap tampil
+  const histChartError = render(
+    h(HistoricalDataContent, {
+      devices: [device],
+      deviceId: 'SIAGA-001',
+      startDate: '2026-07-01',
+      endDate: '2026-07-31',
+      onDeviceChange: noop,
+      onStartDateChange: noop,
+      onEndDateChange: noop,
+      records: historyRecords,
+      meta: historyMeta,
+      page: 1,
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+      chartRecords: null,
+      chartLoading: false,
+      chartError: { message: 'timeout' },
+      chartTruncated: false,
+      onChartRetry: noop,
+    })
+  )
+  assert.ok(histChartError.includes('Grafik tren tidak dapat dimuat'))
+  assert.ok(histChartError.includes('Muat ulang'))
+  assert.ok(histChartError.includes('Detail Riwayat'))
+  assert.ok(histChartError.includes('29,5'))
+  console.log('✓ HistoricalDataContent (chart error + table tetap tampil)')
+
+  // 28d. HistoricalDataContent — chart memakai sampel data (downsampled)
+  const histSampled = render(
+    h(HistoricalDataContent, {
+      devices: [device],
+      deviceId: 'SIAGA-001',
+      startDate: '2026-07-01',
+      endDate: '2026-07-31',
+      onDeviceChange: noop,
+      onStartDateChange: noop,
+      onEndDateChange: noop,
+      records: historyRecords,
+      meta: historyMeta,
+      page: 1,
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+      chartRecords,
+      chartLoading: false,
+      chartError: null,
+      chartTruncated: true,
+      onChartRetry: noop,
+    })
+  )
+  assert.ok(histSampled.includes('Menampilkan tren berdasarkan sampel data'))
+  assert.ok(histSampled.includes('Detail Riwayat'))
+  console.log('✓ HistoricalDataContent (chart downsampled notice)')
+
+  // 28e. HistoricalDataContent — chart kosong padahal tabel berisi data
+  const histChartEmpty = render(
+    h(HistoricalDataContent, {
+      devices: [device],
+      deviceId: 'SIAGA-001',
+      startDate: '2026-07-01',
+      endDate: '2026-07-31',
+      onDeviceChange: noop,
+      onStartDateChange: noop,
+      onEndDateChange: noop,
+      records: historyRecords,
+      meta: historyMeta,
+      page: 1,
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+      chartRecords: [],
+      chartLoading: false,
+      chartError: null,
+      chartTruncated: false,
+      onChartRetry: noop,
+    })
+  )
+  assert.ok(histChartEmpty.includes('Grafik tren tidak tersedia untuk rentang ini'))
+  assert.ok(histChartEmpty.includes('Detail Riwayat'))
+  assert.ok(histChartEmpty.includes('29,5'))
+  console.log('✓ HistoricalDataContent (chart empty, table tetap tampil)')
 
   // 29. Alerts Page — SSR initial (list loading, filter belum terisi)
   const alertsPage = render(h(MemoryRouter, null, h(AlertsPage)))

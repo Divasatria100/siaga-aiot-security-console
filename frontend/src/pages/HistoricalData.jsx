@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { CalendarDays } from 'lucide-react'
 import { useDevices } from '@/hooks/useDevices'
 import { useSensorDataHistory } from '@/hooks/useSensorDataHistory'
+import { useSensorHistoryChart } from '@/hooks/useSensorHistoryChart'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Chart } from '@/components/shared/Chart'
 import { DataTable } from '@/components/shared/DataTable'
@@ -19,6 +20,8 @@ import {
 } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SENSOR_UNITS } from '@/config/constants'
+import { HISTORY_CHART_MAX_POINTS } from '@/config/env'
+import { downsampleRecords } from '@/utils/series'
 import {
   dateToEndIso,
   dateToStartIso,
@@ -83,12 +86,9 @@ const TABLE_COLUMNS = [
 ]
 
 /**
- * Siapkan data chart dari record halaman saat ini: urutkan menaik
- * berdasarkan waktu dan format sumbu X sebagai jam:menit (id-ID).
- *
- * Catatan: endpoint /sensor-data/history bersifat paginated, sehingga
- * chart merepresentasikan record pada halaman aktif, bukan seluruh
- * rentang waktu.
+ * Siapkan data chart dari record: urutkan menaik berdasarkan waktu dan
+ * format sumbu X sebagai jam:menit (id-ID). Diterapkan pada dataset chart
+ * yang mewakili SELURUH rentang terpilih (bukan halaman tabel aktif).
  *
  * @param {Array<{ recorded_at: string, temperature: number, humidity: number, light: number }>} records
  * @returns {Array<{ time: string, temperature: number, humidity: number, light: number }>}
@@ -136,6 +136,17 @@ export default function HistoricalDataPage() {
     { enabled: applied }
   )
 
+  // Dataset chart untuk SELURUH rentang terpilih — independen dari halaman
+  // tabel aktif, sehingga pagination tidak memengaruhi visualisasi tren.
+  const chartQuery = useSensorHistoryChart(
+    {
+      deviceId,
+      startDate: dateToStartIso(startDate),
+      endDate: dateToEndIso(endDate),
+    },
+    { enabled: applied }
+  )
+
   const handleDeviceChange = (value) => {
     setDeviceId(value)
     setPage(1)
@@ -174,6 +185,11 @@ export default function HistoricalDataPage() {
         error={historyQuery.error}
         onPageChange={setPage}
         onRetry={historyQuery.refetch}
+        chartRecords={chartQuery.data?.records ?? null}
+        chartLoading={chartQuery.loading}
+        chartError={chartQuery.error}
+        chartTruncated={Boolean(chartQuery.data?.truncated)}
+        onChartRetry={chartQuery.refetch}
       />
     </div>
   )
@@ -202,6 +218,11 @@ export function HistoricalDataContent({
   error = null,
   onPageChange,
   onRetry,
+  chartRecords = null,
+  chartLoading = false,
+  chartError = null,
+  chartTruncated = false,
+  onChartRetry,
 }) {
   const filtersComplete = Boolean(deviceId && startDate && endDate)
   const invalidRange = filtersComplete && endDate < startDate
@@ -257,6 +278,11 @@ export function HistoricalDataContent({
           loading={loading}
           error={error}
           onPageChange={onPageChange}
+          chartRecords={chartRecords}
+          chartLoading={chartLoading}
+          chartError={chartError}
+          chartTruncated={chartTruncated}
+          onChartRetry={onChartRetry}
         />
       )}
     </div>
@@ -363,11 +389,33 @@ function HistoryFilters({
 }
 
 /**
- * HistoryResults — Chart tren sensor + Data Table riwayat (success state).
- * Murni presentational; data halaman aktif + meta pagination diteruskan.
+ * HistoryResults — Chart tren sensor (seluruh rentang) + Data Table riwayat
+ * (halaman aktif, paginated). Murni presentational.
+ *
+ * Chart menggunakan `chartRecords` (seluruh rentang, sudah di-downsample)
+ * yang independen dari `records` tabel. Masing-masing memiliki state
+ * loading/empty/error sendiri agar kegagalan chart tidak menghilangkan
+ * tabel, dan sebaliknya.
  */
-function HistoryResults({ records, meta, loading, error, onPageChange }) {
-  const chartData = toChartData(records)
+function HistoryResults({
+  records,
+  meta,
+  loading,
+  error,
+  onPageChange,
+  chartRecords,
+  chartLoading,
+  chartError,
+  chartTruncated,
+  onChartRetry,
+}) {
+  const chartData = toChartData(
+    downsampleRecords(chartRecords ?? [], HISTORY_CHART_MAX_POINTS)
+  )
+  const chartSampled = Boolean(
+    chartTruncated ||
+      (Array.isArray(chartRecords) && chartData.length < chartRecords.length)
+  )
 
   return (
     <>
@@ -385,13 +433,25 @@ function HistoryResults({ records, meta, loading, error, onPageChange }) {
           <CardHeader>
             <CardTitle id="history-chart-heading">Tren Sensor</CardTitle>
             <CardDescription>
-              Suhu, kelembapan, dan cahaya pada halaman aktif rentang waktu
-              terpilih.
+              Suhu, kelembapan, dan cahaya pada rentang waktu terpilih.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {chartLoading ? (
               <Skeleton className="h-[280px] w-full" aria-hidden="true" />
+            ) : chartError && !chartRecords ? (
+              <div className="flex flex-wrap items-center gap-2 py-8">
+                <p className="font-mono text-xs text-status-danger">
+                  Grafik tren tidak dapat dimuat.
+                </p>
+                <Button variant="outline" size="sm" onClick={onChartRetry}>
+                  Muat ulang
+                </Button>
+              </div>
+            ) : !chartRecords || chartRecords.length === 0 ? (
+              <p className="py-8 font-mono text-xs text-muted-foreground">
+                Grafik tren tidak tersedia untuk rentang ini.
+              </p>
             ) : (
               <div
                 role="img"
@@ -407,6 +467,17 @@ function HistoryResults({ records, meta, loading, error, onPageChange }) {
                 />
               </div>
             )}
+            {chartSampled &&
+              !chartLoading &&
+              !(chartError && !chartRecords) &&
+              (chartRecords?.length ?? 0) > 0 && (
+                <p
+                  role="status"
+                  className="mt-2 font-mono text-xs text-muted-foreground"
+                >
+                  Menampilkan tren berdasarkan sampel data.
+                </p>
+              )}
           </CardContent>
         </Card>
       </section>

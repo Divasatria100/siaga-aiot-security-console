@@ -21,6 +21,7 @@ const TONES = {
  * @param {string} [props.unit] Satuan sensor (lihat SENSOR_UNITS)
  * @param {import('react').ReactNode} [props.icon] Ikon sensor
  * @param {'default'|'normal'|'warning'|'danger'|'muted'} [props.tone] Tone warna nilai
+ * @param {import('react').ReactNode} [props.footer] Slot di bawah header (mis. sparkline tren sensor)
  * @param {string} [props.className]
  */
 export function SensorCard({
@@ -29,6 +30,7 @@ export function SensorCard({
   unit,
   icon,
   tone = 'default',
+  footer,
   className,
 }) {
   return (
@@ -53,6 +55,7 @@ export function SensorCard({
           </div>
         )}
       </div>
+      {footer && <div className="mt-3">{footer}</div>}
     </Card>
   )
 }

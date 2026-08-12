@@ -3,8 +3,10 @@ import { Activity, Box, Droplets, Radio, Sun, Thermometer } from 'lucide-react'
 import { useDevices } from '@/hooks/useDevices'
 import { useDevice } from '@/hooks/useDevice'
 import { useLatestSensorData } from '@/hooks/useLatestSensorData'
+import { useRecentSensorTrend } from '@/hooks/useRecentSensorTrend'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { SensorCard } from '@/components/shared/SensorCard'
+import { SensorTrendSparkline } from '@/components/shared/SensorTrendSparkline'
 import { DeviceStatusCard } from '@/components/shared/DeviceStatusCard'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { LoadingIndicator } from '@/components/shared/LoadingIndicator'
@@ -29,6 +31,16 @@ const SENSOR_ITEMS = [
   { key: 'motion', icon: Activity },
   { key: 'obstacle', icon: Box },
 ]
+
+/**
+ * Warna garis tren per sensor kontinu — konsisten dengan seri chart pada
+ * Historical Data (Suhu #f97316, Kelembapan #818cf8, Cahaya #22c55e).
+ */
+const SENSOR_TREND_COLORS = {
+  temperature: '#f97316',
+  humidity: '#818cf8',
+  light: '#22c55e',
+}
 
 /**
  * DeviceSelector — selector device untuk Monitoring (page-specific).
@@ -99,15 +111,43 @@ function DeviceSelector({
  * Nilai boolean (motion/obstacle) ditampilkan sebagai Ada/Tidak tanpa
  * diinterpretasikan sebagai status sistem.
  *
+ * Sensor kontinu (suhu, kelembapan, cahaya) menerima `SensorTrendSparkline`
+ * sebagai footer bila data tren singkat tersedia (≥2 titik); motion/obstacle
+ * tetap representasi status/teks tanpa chart. Kegagalan/kosongnya data tren
+ * tidak memengaruhi tampilan utama — sparkline cukup disembunyikan.
+ *
  * @param {object} props
  * @param {import('@/types').SensorData} props.sensor Data sensor terkini
+ * @param {import('@/types').SensorData[]} [props.trend] Data tren singkat (opsional)
  */
-export function SensorGrid({ sensor }) {
+export function SensorGrid({ sensor, trend }) {
+  const trendSeries = useMemo(() => {
+    if (!Array.isArray(trend) || trend.length === 0) return {}
+    const series = {}
+    for (const key of Object.keys(SENSOR_TREND_COLORS)) {
+      series[key] = trend
+        .map((record) => ({
+          recorded_at: record.recorded_at,
+          value: record[key],
+        }))
+        .filter((point) => typeof point.value === 'number')
+    }
+    return series
+  }, [trend])
+
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
       {SENSOR_ITEMS.map(({ key, icon: Icon }) => {
         const isBoolean = key === 'motion' || key === 'obstacle'
         const raw = sensor[key]
+        const series = trendSeries[key] ?? []
+        const footer =
+          !isBoolean && series.length >= 2 ? (
+            <SensorTrendSparkline
+              data={series}
+              color={SENSOR_TREND_COLORS[key]}
+            />
+          ) : undefined
         return (
           <SensorCard
             key={key}
@@ -116,6 +156,7 @@ export function SensorGrid({ sensor }) {
             unit={isBoolean ? undefined : SENSOR_UNITS[key]}
             tone={isBoolean ? (raw ? 'default' : 'muted') : 'default'}
             icon={<Icon className="h-5 w-5" aria-hidden="true" />}
+            footer={footer}
           />
         )
       })}
@@ -170,6 +211,7 @@ function DeviceStatusSkeleton() {
  * @param {import('@/types').SensorData|null} props.latest Data sensor terkini
  * @param {import('@/lib/axios').ApiError|null} props.latestError Error data sensor terkini
  * @param {boolean} [props.latestLoading] Status loading data sensor
+ * @param {import('@/types').SensorData[]|null} [props.trend] Data tren singkat sensor (opsional)
  * @param {() => void} props.onRetryDevice Retry detail device
  * @param {() => void} props.onRetryLatest Retry data sensor
  */
@@ -179,6 +221,7 @@ export function MonitoringContent({
   latest,
   latestError,
   latestLoading = false,
+  trend = null,
   onRetryDevice,
   onRetryLatest,
 }) {
@@ -245,7 +288,7 @@ export function MonitoringContent({
         ) : latestError && !latest ? (
           <ErrorState error={latestError} onRetry={onRetryLatest} />
         ) : latest ? (
-          <SensorGrid sensor={latest} />
+          <SensorGrid sensor={latest} trend={trend} />
         ) : null}
       </section>
     </div>
@@ -266,6 +309,7 @@ export function MonitoringView({ deviceId = null, onSelectDevice }) {
   const devicesQuery = useDevices()
   const deviceQuery = useDevice(deviceId)
   const latestQuery = useLatestSensorData(deviceId)
+  const trendQuery = useRecentSensorTrend(deviceId)
 
   const device = deviceQuery.data
   const devices = devicesQuery.data ?? []
@@ -320,6 +364,7 @@ export function MonitoringView({ deviceId = null, onSelectDevice }) {
           latest={latestQuery.data}
           latestError={latestQuery.error}
           latestLoading={latestQuery.loading}
+          trend={trendQuery.data}
           onRetryDevice={deviceQuery.refetch}
           onRetryLatest={latestQuery.refetch}
         />

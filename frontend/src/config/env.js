@@ -41,3 +41,30 @@ export const STALE_THRESHOLD_MS = asNumber(
   env.VITE_STALE_THRESHOLD_MS,
   60_000
 )
+
+/** Rentang waktu (ms) untuk data tren singkat sparkline Monitoring. */
+export const TREND_WINDOW_MS = asNumber(
+  env.VITE_TREND_WINDOW_MS,
+  3_600_000
+)
+
+/** Maksimum record terakhir untuk sparkline tren sensor. */
+export const TREND_LIMIT = asNumber(env.VITE_TREND_LIMIT, 15)
+
+/** per_page untuk fetch data chart Historical Data (backend cap = 100). */
+export const HISTORY_CHART_PER_PAGE = asNumber(
+  env.VITE_HISTORY_CHART_PER_PAGE,
+  100
+)
+
+/** Maksimum record yang diambil untuk chart seluruh rentang (sebelum downsampling). */
+export const HISTORY_CHART_MAX_RECORDS = asNumber(
+  env.VITE_HISTORY_CHART_MAX_RECORDS,
+  1000
+)
+
+/** Maksimum titik yang dirender di chart setelah downsampling. */
+export const HISTORY_CHART_MAX_POINTS = asNumber(
+  env.VITE_HISTORY_CHART_MAX_POINTS,
+  400
+)
