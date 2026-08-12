@@ -68,3 +68,15 @@ export const HISTORY_CHART_MAX_POINTS = asNumber(
   env.VITE_HISTORY_CHART_MAX_POINTS,
   400
 )
+
+/** per_page untuk fetch dataset agregat alert (backend cap = 100). */
+export const ALERT_OVERVIEW_PER_PAGE = asNumber(
+  env.VITE_ALERT_OVERVIEW_PER_PAGE,
+  100
+)
+
+/** Maksimum record yang diambil untuk agregat alert (sebelum dihitung). */
+export const ALERT_OVERVIEW_MAX_RECORDS = asNumber(
+  env.VITE_ALERT_OVERVIEW_MAX_RECORDS,
+  5000
+)

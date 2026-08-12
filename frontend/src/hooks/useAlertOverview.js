@@ -1,29 +1,30 @@
 import { useCallback } from 'react'
 import { usePolling } from '@/hooks/usePolling'
-import { getSensorDataHistory } from '@/services/sensorData'
+import { getAlerts } from '@/services/alerts'
+import { countAlertsByStatus } from '@/utils/alerts'
 import {
-  HISTORY_CHART_MAX_RECORDS,
-  HISTORY_CHART_PER_PAGE,
+  ALERT_OVERVIEW_MAX_RECORDS,
+  ALERT_OVERVIEW_PER_PAGE,
 } from '@/config/env'
 
 /**
- * Server State — dataset chart Historical Data untuk SELURUH rentang yang
- * dipilih (independen dari halaman tabel aktif).
+ * Server State — dataset agregat alert untuk SELURUH filter aktif
+ * (independen dari halaman tabel aktif).
  *
- * Endpoint GET /api/v1/sensor-data/history bersifat paginated dan backend
- * membatasi `per_page` maksimal 100, sehingga dataset chart dimuat lewat
- * beberapa halaman hingga total record tercapai. Bila jumlah record melebihi
- * batas `maxRecords` (rentang sangat besar), fetch dihentikan dan data
- * `truncated` diset — pemanggil menampilkan catatan non-blocking bahwa tren
- * didasarkan pada sampel data. Downsampling untuk render dilakukan oleh
- * pemanggil (downsampleRecords).
+ * Endpoint GET /api/v1/alerts bersifat paginated dan backend membatasi
+ * `per_page` maksimal 100, sehingga dataset agregat dimuat lewat beberapa
+ * halaman hingga total record tercapai. Bila jumlah record melebihi batas
+ * `maxRecords` (rentang sangat besar), fetch dihentikan dan data `truncated`
+ * diset — pemanggil menampilkan catatan non-blocking bahwa agregat didasarkan
+ * pada sampel data terbaru.
  *
- * Hook ini berdiri terpisah dari query tabel ber-pagination: query chart
+ * Hook ini berdiri terpisah dari query tabel ber-pagination: query agregat
  * tidak menerima halaman, sehingga berganti page tabel tidak mengubah chart.
  * Kegagalan query ini tidak memblokir halaman (table tetap tampil).
  *
  * @param {object} [params]
- * @param {string} [params.deviceId] Business key perangkat
+ * @param {string} [params.deviceId] Filter perangkat
+ * @param {'WARNING'|'DANGER'} [params.status] Filter status alert
  * @param {string} [params.startDate] Awal rentang (ISO 8601)
  * @param {string} [params.endDate] Akhir rentang (ISO 8601)
  * @param {number} [params.maxRecords] Batas maksimum record yang diambil
@@ -31,25 +32,24 @@ import {
  * @param {object} [options]
  * @param {boolean} [options.enabled]
  * @returns {{
- *   data: { records: import('@/types').SensorData[], total: number, truncated: boolean } | null,
+ *   data: { counts: { WARNING: number, DANGER: number }, total: number, truncated: boolean } | null,
  *   loading: boolean,
  *   error: import('@/lib/axios').ApiError | null,
  *   lastUpdated: number | null,
  *   refetch: () => Promise<void>,
  * }}
  */
-export function useSensorHistoryChart(
+export function useAlertOverview(
   {
     deviceId,
+    status,
     startDate,
     endDate,
-    maxRecords = HISTORY_CHART_MAX_RECORDS,
-    perPage = HISTORY_CHART_PER_PAGE,
+    maxRecords = ALERT_OVERVIEW_MAX_RECORDS,
+    perPage = ALERT_OVERVIEW_PER_PAGE,
   } = {},
   { enabled = true } = {}
 ) {
-  const isEnabled = enabled && Boolean(deviceId && startDate && endDate)
-
   const fetcher = useCallback(async () => {
     let records = []
     let page = 1
@@ -57,8 +57,9 @@ export function useSensorHistoryChart(
     let truncated
 
     for (;;) {
-      const envelope = await getSensorDataHistory({
+      const envelope = await getAlerts({
         deviceId,
+        status,
         startDate,
         endDate,
         page,
@@ -77,8 +78,8 @@ export function useSensorHistoryChart(
       page += 1
     }
 
-    return { records, total, truncated }
-  }, [deviceId, startDate, endDate, maxRecords, perPage])
+    return { counts: countAlertsByStatus(records), total, truncated }
+  }, [deviceId, status, startDate, endDate, maxRecords, perPage])
 
-  return usePolling(fetcher, { interval: 0, enabled: isEnabled })
+  return usePolling(fetcher, { interval: 0, enabled })
 }

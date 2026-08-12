@@ -6,6 +6,7 @@ import {
   Line,
   Area,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -53,7 +54,7 @@ const AXIS_STROKE = '#2a2a2a'
  * @param {'line'|'area'|'bar'} [props.type] Jenis chart
  * @param {object[]} props.data Data record untuk chart
  * @param {string} props.xKey Field untuk sumbu X
- * @param {Array<{ key: string, name: string, color?: string, fill?: string }>} props.series Definisi seri data
+ * @param {Array<{ key: string, name: string, color?: string, fill?: string, cellDataKey?: string }>} props.series Definisi seri data. Untuk `type="bar"`, `cellDataKey` adalah field pada setiap baris data yang berisi warna fill per-bar (Cell Recharts).
  * @param {number} [props.height] Tinggi chart (px)
  * @param {(value: unknown, index: number) => string} [props.xTickFormatter]
  * @param {(value: unknown, index: number) => string} [props.yTickFormatter]
@@ -123,7 +124,12 @@ export function Chart({
           fill={item.fill ?? color}
           radius={[3, 3, 0, 0]}
           barSize={18}
-        />
+        >
+          {item.cellDataKey &&
+            data.map((row, rowIndex) => (
+              <Cell key={`${item.key}-${rowIndex}`} fill={row?.[item.cellDataKey]} />
+            ))}
+        </Bar>
       )
     }
     if (type === 'area') {

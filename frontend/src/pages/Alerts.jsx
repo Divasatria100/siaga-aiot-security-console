@@ -3,14 +3,17 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { BellRing, X } from 'lucide-react'
 import { useDevices } from '@/hooks/useDevices'
 import { useAlerts } from '@/hooks/useAlerts'
+import { useAlertOverview } from '@/hooks/useAlertOverview'
 import { useAlert } from '@/hooks/useAlert'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { DataTable } from '@/components/shared/DataTable'
 import { Pagination } from '@/components/shared/Pagination'
 import { AlertCard } from '@/components/shared/AlertCard'
+import { AlertSeverityChart } from '@/components/shared/AlertSeverityChart'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'
+import { sortAlertsBySeverity } from '@/utils/alerts'
 import {
   Card,
   CardContent,
@@ -97,6 +100,7 @@ export default function AlertsPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [page, setPage] = useState(1)
+  const [sortOrder, setSortOrder] = useState('recent')
 
   const devicesQuery = useDevices()
 
@@ -113,6 +117,16 @@ export default function AlertsPage() {
     startDate: startIso,
     endDate: endIso,
     page,
+  })
+
+  // Dataset agregat SELURUH hasil filter (independen dari pagination tabel):
+  // chart ringkasan severity memakai dataset tersendiri agar tidak bergantung
+  // pada halaman aktif, mengikuti pola useSensorHistoryChart.
+  const overviewQuery = useAlertOverview({
+    deviceId: deviceId || undefined,
+    status: status || undefined,
+    startDate: startIso,
+    endDate: endIso,
   })
 
   const alertId = parseAlertId(alertIdParam)
@@ -140,6 +154,10 @@ export default function AlertsPage() {
     setEndDate(value)
     setPage(1)
   }
+  const handleSortOrderChange = (value) => {
+    setSortOrder(value)
+    setPage(1)
+  }
 
   return (
     <div className="space-y-6">
@@ -163,6 +181,14 @@ export default function AlertsPage() {
         onStatusChange={handleStatusChange}
         onStartDateChange={handleStartDateChange}
         onEndDateChange={handleEndDateChange}
+        sortOrder={sortOrder}
+        onSortOrderChange={handleSortOrderChange}
+        overviewCounts={overviewQuery.data?.counts ?? null}
+        overviewTotal={overviewQuery.data?.total ?? 0}
+        overviewTruncated={overviewQuery.data?.truncated ?? false}
+        overviewLoading={overviewQuery.loading}
+        overviewError={overviewQuery.error}
+        onOverviewRetry={overviewQuery.refetch}
         alerts={alertsQuery.data}
         meta={alertsQuery.meta}
         loading={alertsQuery.loading}
@@ -200,6 +226,14 @@ export function AlertsContent({
   onStatusChange,
   onStartDateChange,
   onEndDateChange,
+  sortOrder = 'recent',
+  onSortOrderChange,
+  overviewCounts = null,
+  overviewTotal = 0,
+  overviewTruncated = false,
+  overviewLoading = false,
+  overviewError = null,
+  onOverviewRetry,
   alerts = null,
   meta = null,
   loading = false,
@@ -217,6 +251,12 @@ export function AlertsContent({
   const hasAlerts = Array.isArray(alerts) && alerts.length > 0
   const hasFilters = Boolean(deviceId || status || startDate || endDate)
   const hasDetail = alertId != null
+
+  // Sort severity hanya merombak urutan baris yang sudah ada pada dataset
+  // yang ditampilkan (halaman aktif) — tidak memengaruhi pagination meta,
+  // total record, maupun pemilihan detail (selalu by id).
+  const sortedAlerts =
+    sortOrder === 'severity' ? sortAlertsBySeverity(alerts ?? []) : alerts
 
   return (
     <div
@@ -240,6 +280,15 @@ export function AlertsContent({
           onStatusChange={onStatusChange}
           onStartDateChange={onStartDateChange}
           onEndDateChange={onEndDateChange}
+        />
+
+        <AlertSeverityChart
+          counts={overviewCounts}
+          total={overviewTotal}
+          truncated={overviewTruncated}
+          loading={overviewLoading}
+          error={overviewError}
+          onRetry={onOverviewRetry}
         />
 
         {error && hasAlerts && (
@@ -285,9 +334,26 @@ export function AlertsContent({
 
         {hasAlerts && (
           <>
+            <div className="flex items-center justify-end gap-2">
+              <label
+                htmlFor="alerts-sort"
+                className="font-mono text-xs font-semibold uppercase tracking-widest text-muted-foreground"
+              >
+                Urutkan
+              </label>
+              <select
+                id="alerts-sort"
+                value={sortOrder}
+                onChange={(event) => onSortOrderChange(event.target.value)}
+                className="h-8 rounded-control border border-border bg-surface/40 px-2 font-mono text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+              >
+                <option value="recent">Terbaru</option>
+                <option value="severity">Prioritas</option>
+              </select>
+            </div>
             <DataTable
               columns={ALERT_COLUMNS}
-              data={alerts}
+              data={sortedAlerts}
               rowKey={(row) => row.id}
               onRowClick={(row) => onSelectAlert(row.id)}
               ariaLabel="Daftar alert"

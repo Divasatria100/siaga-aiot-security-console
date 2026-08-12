@@ -45,7 +45,9 @@ import { DataTable } from '@/components/shared/DataTable'
 import { Pagination } from '@/components/shared/Pagination'
 import { Chart } from '@/components/shared/Chart'
 import { ChartTooltip } from '@/components/shared/ChartTooltip'
+import { AlertSeverityChart } from '@/components/shared/AlertSeverityChart'
 import { ApiError } from '@/lib/axios'
+import { sortAlertsBySeverity, countAlertsByStatus } from '@/utils/alerts'
 import DashboardPage, { DashboardContent } from '@/pages/Dashboard'
 import MonitoringPage from '@/pages/Monitoring'
 import { MonitoringContent, SensorGrid } from '@/pages/Monitoring/MonitoringView'
@@ -264,7 +266,73 @@ function run() {
   const barHtml = render(h(Chart, { type: 'bar', data: chartData, xKey: 't', series: [{ key: 'temperature', name: 'Suhu' }] }))
   assert.ok(typeof areaHtml === 'string' && areaHtml.length > 0)
   assert.ok(typeof barHtml === 'string' && barHtml.length > 0)
-  console.log('✓ Chart (line/area/bar SSR)')
+
+  // 12b. Chart bar — per-bar Cell fill (cellDataKey) tetap render SSR
+  const cellData = [
+    { t: 'DANGER', temperature: 5, fill: '#ef4444' },
+    { t: 'WARNING', temperature: 3, fill: '#f59e0b' },
+  ]
+  const barCellHtml = render(
+    h(Chart, {
+      type: 'bar',
+      data: cellData,
+      xKey: 't',
+      series: [{ key: 'temperature', name: 'Jumlah', cellDataKey: 'fill' }],
+    })
+  )
+  assert.ok(typeof barCellHtml === 'string' && barCellHtml.length > 0)
+  console.log('✓ Chart (line/area/bar SSR + per-bar cell fill)')
+
+  // 12c. AlertSeverityChart — states: loading, error+retry, empty, success, truncated
+  const overviewLoading = render(h(AlertSeverityChart, { loading: true, counts: null }))
+  assert.ok(overviewLoading.includes('Ringkasan Alert'))
+  assert.ok(overviewLoading.includes('animate-pulse'))
+  const overviewError = render(h(AlertSeverityChart, { error: { message: 'timeout' }, onRetry: () => {} }))
+  assert.ok(overviewError.includes('Gagal memuat ringkasan'))
+  assert.ok(overviewError.includes('Muat ulang'))
+  const overviewEmpty = render(h(AlertSeverityChart, { counts: { DANGER: 0, WARNING: 0 }, total: 0 }))
+  assert.ok(overviewEmpty.includes('Belum ada data alert untuk filter ini.'))
+  assert.ok(!overviewEmpty.includes('animate-pulse'))
+  const overviewOk = render(
+    h(AlertSeverityChart, {
+      counts: { DANGER: 5, WARNING: 3 },
+      total: 8,
+      loading: false,
+    })
+  )
+  assert.ok(overviewOk.includes('Ringkasan Alert'))
+  assert.ok(overviewOk.includes('8'))
+  assert.ok(overviewOk.includes('data-testid="alert-overview-chart"'))
+  const overviewTruncated = render(
+    h(AlertSeverityChart, { counts: { DANGER: 100, WARNING: 60 }, total: 160, truncated: true })
+  )
+  assert.ok(overviewTruncated.includes('Agregat berdasarkan data terbaru (sample)'))
+  console.log('✓ AlertSeverityChart (loading/error/empty/success/truncated)')
+
+  // 12d. sortAlertsBySeverity — DANGER di atas WARNING, secondary newest
+  const sortAlerts = [
+    { id: 2, status: 'WARNING', triggered_at: '2026-07-31T08:50:00Z' },
+    { id: 1, status: 'DANGER', triggered_at: '2026-07-31T08:45:00Z' },
+    { id: 3, status: 'WARNING', triggered_at: '2026-07-31T08:55:00Z' },
+  ]
+  const severitySorted = sortAlertsBySeverity(sortAlerts)
+  assert.deepEqual(
+    severitySorted.map((alert) => alert.id),
+    [1, 3, 2]
+  )
+  assert.deepEqual(sortAlertsBySeverity([]), [])
+
+  // 12e. countAlertsByStatus — agregat per status tanpa bergantung pagination
+  assert.deepEqual(
+    countAlertsByStatus([
+      { id: 1, status: 'DANGER' },
+      { id: 2, status: 'WARNING' },
+      { id: 3, status: 'WARNING' },
+    ]),
+    { WARNING: 2, DANGER: 1 }
+  )
+  assert.deepEqual(countAlertsByStatus([]), { WARNING: 0, DANGER: 0 })
+  console.log('✓ sortAlertsBySeverity + countAlertsByStatus (utilities)')
 
   // 13. Dashboard Page — render awal (loading state) tanpa error
   const dashPage = render(h(MemoryRouter, null, h(DashboardPage)))
@@ -722,7 +790,7 @@ function run() {
   ]
   const alertsMeta = { current_page: 1, per_page: 50, total: 2 }
 
-  // 30. AlertsContent — list success + pagination
+  // 30. AlertsContent — list success + pagination + aggregate chart
   const alertsOk = render(
     h(AlertsContent, {
       devices: [device],
@@ -739,6 +807,11 @@ function run() {
       onSelectAlert: noop,
       onDetailClose: noop,
       onDetailRetry: noop,
+      sortOrder: 'recent',
+      onSortOrderChange: noop,
+      overviewCounts: { DANGER: 1, WARNING: 1 },
+      overviewTotal: 2,
+      overviewLoading: false,
     })
   )
   assert.ok(alertsOk.includes('#1'))
@@ -748,7 +821,39 @@ function run() {
   assert.ok(alertsOk.includes('Waktu Kejadian'))
   assert.ok(alertsOk.includes('31 Jul 2026'))
   assert.ok(alertsOk.includes('Menampilkan 1–2 dari 2 data'))
-  console.log('✓ AlertsContent (list success + pagination)')
+  assert.ok(alertsOk.includes('Ringkasan Alert'))
+  assert.ok(alertsOk.includes('Urutkan'))
+  assert.ok(alertsOk.includes('Terbaru'))
+  assert.ok(alertsOk.includes('Prioritas'))
+  assert.ok(alertsOk.includes('id="alerts-sort"'))
+
+  // 30b. AlertsContent — sort severity menempatkan DANGER sebelum WARNING
+  // pada dataset yang ditampilkan
+  const seaRows = [
+    { id: 2, device_id: 'SIAGA-002', status: 'WARNING', triggered_at: '2026-07-31T08:50:00Z' },
+    { id: 1, device_id: 'SIAGA-001', status: 'DANGER', triggered_at: '2026-07-31T08:45:00Z' },
+  ]
+  const alertsSorted = render(
+    h(AlertsContent, {
+      alerts: seaRows,
+      meta: alertsMeta,
+      loading: false,
+      error: null,
+      onPageChange: noop,
+      onRetry: noop,
+      onDeviceChange: noop,
+      onStatusChange: noop,
+      onStartDateChange: noop,
+      onEndDateChange: noop,
+      onSelectAlert: noop,
+      onDetailClose: noop,
+      onDetailRetry: noop,
+      sortOrder: 'severity',
+      onSortOrderChange: noop,
+    })
+  )
+  assert.ok(alertsSorted.indexOf('#1') < alertsSorted.indexOf('#2'))
+  console.log('✓ AlertsContent (list success + chart + sort control + severity sort)')
 
   // 31. AlertsContent — empty result (dibedakan tanpa/ada filter)
   const alertsEmpty = render(
