@@ -38,6 +38,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { DashboardCard } from '@/components/shared/DashboardCard'
 import { SensorCard } from '@/components/shared/SensorCard'
 import { SensorTrendSparkline } from '@/components/shared/SensorTrendSparkline'
+import { SensorTrendDetail } from '@/components/shared/SensorTrendDetail'
 import { downsampleRecords } from '@/utils/series'
 import { DeviceStatusCard } from '@/components/shared/DeviceStatusCard'
 import { AlertCard } from '@/components/shared/AlertCard'
@@ -169,7 +170,22 @@ function run() {
   assert.ok(sensor.includes('Suhu'))
   assert.ok(sensor.includes('29.5'))
   assert.ok(sensor.includes('°C'))
+  assert.ok(!sensor.includes('role="button"'))
   console.log('✓ SensorCard')
+
+  // 6a. SensorCard — interactive (drill-in detail, pola DeviceStatusCard)
+  const sensorClickable = render(
+    h(SensorCard, { label: 'Suhu', value: 29.5, unit: '°C', onClick: () => {}, active: false })
+  )
+  assert.ok(sensorClickable.includes('role="button"'))
+  assert.ok(sensorClickable.includes('tabindex="0"'))
+  assert.ok(sensorClickable.includes('aria-expanded="false"'))
+  assert.ok(sensorClickable.includes('cursor-pointer'))
+  const sensorActive = render(
+    h(SensorCard, { label: 'Suhu', value: 29.5, unit: '°C', onClick: () => {}, active: true })
+  )
+  assert.ok(sensorActive.includes('aria-expanded="true"'))
+  console.log('✓ SensorCard (interactive + active state)')
 
   // 6b. SensorTrendSparkline — minimal, non-interaktif, degradasi lembut
   const sparkData = [
@@ -580,6 +596,73 @@ function run() {
   )
   assert.ok(!noTrendHtml.includes('Tren nilai'))
   console.log('✓ SensorGrid (sparkline hanya pada 3 sensor kontinu)')
+
+  // 18c. SensorGrid — sensor kontinu interactive, motion/obstacle tidak
+  const interactiveGrid = render(
+    h(SensorGrid, {
+      sensor: { temperature: 29.5, humidity: 68.2, light: 120, motion: true, obstacle: false },
+      trend: trendRows,
+      activeSensor: 'humidity',
+      onSelectSensor: () => {},
+    })
+  )
+  assert.equal((interactiveGrid.match(/role="button"/g) || []).length, 3)
+  assert.equal((interactiveGrid.match(/tabindex="0"/g) || []).length, 3)
+  assert.equal((interactiveGrid.match(/aria-expanded="true"/g) || []).length, 1)
+  const nonInteractiveGrid = render(
+    h(SensorGrid, {
+      sensor: { temperature: 29.5, humidity: 68.2, light: 120, motion: true, obstacle: false },
+      trend: trendRows,
+    })
+  )
+  assert.ok(!nonInteractiveGrid.includes('role="button"'))
+  console.log('✓ SensorGrid (clickable kontinu, motion/obstacle statis)')
+
+  // 18d. SensorTrendDetail — stats (Current/Min/Avg/Max) + chart dari data aktual
+  const detailSeries = [
+    { recorded_at: '2026-07-31T08:50:00Z', value: 28.1 },
+    { recorded_at: '2026-07-31T09:00:00Z', value: 29.5 },
+    { recorded_at: '2026-07-31T09:10:00Z', value: 30.2 },
+  ]
+  const detailHtml = render(
+    h(SensorTrendDetail, { label: 'Suhu', color: '#f97316', unit: '°C', series: detailSeries })
+  )
+  assert.ok(detailHtml.includes('Suhu Trend'))
+  assert.ok(detailHtml.includes('Current'))
+  assert.ok(detailHtml.includes('Min'))
+  assert.ok(detailHtml.includes('Avg'))
+  assert.ok(detailHtml.includes('Max'))
+  assert.ok(detailHtml.includes('30,2 °C'))
+  assert.ok(detailHtml.includes('28,1 °C'))
+  assert.ok(detailHtml.includes('Grafik tren suhu 1 jam terakhir'))
+
+  // 18e. SensorTrendDetail — urutan kronologis & Current = record terbaru
+  // (input DESC = urutan yang dikembalikan endpoint history; record terbaru
+  //  di sini 29.1, bukan nilai maksimum 30.2)
+  const descSeries = [
+    { recorded_at: '2026-07-31T09:10:00Z', value: 29.1 },
+    { recorded_at: '2026-07-31T09:00:00Z', value: 30.2 },
+    { recorded_at: '2026-07-31T08:50:00Z', value: 28.1 },
+  ]
+  const descHtml = render(
+    h(SensorTrendDetail, { label: 'Suhu', color: '#f97316', unit: '°C', series: descSeries })
+  )
+  assert.ok(descHtml.includes('29,1 °C'))
+  assert.ok(descHtml.includes('30,2 °C'))
+  assert.ok(descHtml.includes('28,1 °C'))
+
+  // 18f. SensorTrendDetail — <2 titik → empty state, tidak ada chart kosong
+  const detailEmpty = render(
+    h(SensorTrendDetail, { label: 'Suhu', color: '#f97316', unit: '°C', series: [] })
+  )
+  assert.ok(detailEmpty.includes('Data tren belum tersedia untuk 1 jam terakhir.'))
+  assert.ok(!detailEmpty.includes('Current'))
+  const detailSingle = render(
+    h(SensorTrendDetail, { label: 'Suhu', color: '#f97316', series: [{ recorded_at: '09:00', value: 28 }] })
+  )
+  assert.ok(detailSingle.includes('Data tren belum tersedia untuk 1 jam terakhir.'))
+  assert.ok(!detailSingle.includes('Current'))
+  console.log('✓ SensorTrendDetail (stats + chart, DESC input, empty <2 titik)')
 
   // 19. MonitoringContent — device belum punya data sensor (404 latest)
   const notFound = new ApiError({ status: 404, code: 'NOT_FOUND', message: 'Sensor data tidak ditemukan' })
