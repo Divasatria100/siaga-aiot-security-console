@@ -1,23 +1,76 @@
-$pidDir = ".dev"
+$ErrorActionPreference = "Stop"
 
-Write-Host "Stopping Laravel Backend..." -ForegroundColor Yellow
+# ============================================
+# SIAGA - Development Environment Stopper
+# Stops and removes containers/networks.
+# Data volumes are PRESERVED (no -v flag).
+# ============================================
 
-if (Test-Path "$pidDir/backend.pid") {
-    $backendId = Get-Content "$pidDir/backend.pid"
+$RootDir = $PSScriptRoot
+$ComposeFile = Join-Path $RootDir "compose.yaml"
 
-    taskkill /PID $backendId /T /F 2>$null
+Write-Host ""
+Write-Host "============================================" -ForegroundColor Cyan
+Write-Host "       SIAGA Development Environment        " -ForegroundColor Cyan
+Write-Host "============================================" -ForegroundColor Cyan
+Write-Host ""
 
-    Remove-Item "$pidDir/backend.pid" -Force
+# ============================================
+# Validate Docker Compose File
+# ============================================
+
+if (-not (Test-Path $ComposeFile)) {
+    Write-Host "[ERROR] compose.yaml not found:" -ForegroundColor Red
+    Write-Host "        $ComposeFile" -ForegroundColor Red
+    exit 1
 }
 
-Write-Host "Stopping Frontend (Vite)..." -ForegroundColor Yellow
+# ============================================
+# Validate Docker
+# ============================================
 
-if (Test-Path "$pidDir/frontend.pid") {
-    $frontendId = Get-Content "$pidDir/frontend.pid"
+Write-Host "Checking Docker..." -ForegroundColor Yellow
 
-    taskkill /PID $frontendId /T /F 2>$null
+try {
+    docker info *> $null
 
-    Remove-Item "$pidDir/frontend.pid" -Force
+    if ($LASTEXITCODE -ne 0) {
+        throw "Docker is not running."
+    }
+}
+catch {
+    Write-Host "[ERROR] Docker is not running." -ForegroundColor Red
+    Write-Host "        Nothing to stop." -ForegroundColor Yellow
+    exit 0
 }
 
-Write-Host "All services stopped!" -ForegroundColor Cyan
+Write-Host "Docker is running." -ForegroundColor Green
+Write-Host ""
+
+# ============================================
+# Stop Containers
+# ============================================
+
+Write-Host "Stopping SIAGA containers..." -ForegroundColor Yellow
+Write-Host ""
+
+Set-Location $RootDir
+
+# `down` (without -v) stops and removes the containers and the network while
+# keeping the named data volumes (postgres_data, backend_vendor,
+# frontend_node_modules) intact for the next start.
+docker compose down
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host ""
+    Write-Host "[ERROR] Failed to stop SIAGA containers." -ForegroundColor Red
+    exit $LASTEXITCODE
+}
+
+Write-Host ""
+Write-Host "SIAGA containers stopped." -ForegroundColor Green
+Write-Host "Data volumes are preserved (postgres_data, backend_vendor, frontend_node_modules)." -ForegroundColor DarkGray
+Write-Host "To remove all data as well, run:  docker compose down -v" -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "Restart with: .\start-dev.ps1" -ForegroundColor White
+Write-Host ""

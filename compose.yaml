@@ -1,0 +1,118 @@
+name: siaga
+
+# ============================================================
+# SIAGA — Development Environment (Docker Compose)
+#
+# Services: PostgreSQL + TimescaleDB, Laravel Backend, React/Vite Frontend.
+#
+# The frontend Vite dev server proxies /api to the backend container, so no
+# separate reverse proxy (nginx) is needed in development. This mirrors the
+# existing host workflow (Vite proxy -> http://127.0.0.1:8000) and avoids
+# adding infrastructure the project does not use yet (docs/SAD §13).
+#
+# All environment values can be overridden from a root `.env` file
+# (copy `.env.example` to `.env`). Sensible defaults are provided.
+# ============================================================
+
+services:
+
+  # PostgreSQL + TimescaleDB
+  postgres:
+    image: timescale/timescaledb:latest-pg17
+    container_name: siaga_postgres
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-siaga_db}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      TIMESCALEDB_TELEMETRY: off
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-siaga_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - siaga_network
+
+  # Laravel Backend (API)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: siaga_backend
+    working_dir: /var/www/html
+    entrypoint: ["sh", "/var/www/html/docker/entrypoint.sh"]
+    command: ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+    environment:
+      APP_NAME: ${APP_NAME:-SIAGA}
+      APP_ENV: ${APP_ENV:-local}
+      APP_DEBUG: ${APP_DEBUG:-true}
+      APP_URL: ${APP_URL:-http://localhost:8000}
+      LOG_CHANNEL: stderr
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE:-siaga_db}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      CACHE_STORE: ${CACHE_STORE:-database}
+      SESSION_DRIVER: ${SESSION_DRIVER:-database}
+      QUEUE_CONNECTION: ${QUEUE_CONNECTION:-database}
+    volumes:
+      - ./backend:/var/www/html
+      - backend_vendor:/var/www/html/vendor
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/up >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - siaga_network
+
+  # React Frontend (Vite dev server)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: siaga_frontend
+    working_dir: /app
+    environment:
+      # Vite dev-server proxy target -> backend container (see vite.config.js).
+      VITE_DEV_PROXY_TARGET: http://backend:8000
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - siaga_network
+
+networks:
+  siaga_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  backend_vendor:
+    driver: local
+  frontend_node_modules:
+    driver: local

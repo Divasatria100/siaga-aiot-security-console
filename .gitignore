@@ -1,1 +1,2 @@
-.dev/
+# Optional Docker Compose overrides (see .env.example)
+.env

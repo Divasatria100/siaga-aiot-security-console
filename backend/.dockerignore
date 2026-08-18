@@ -1,0 +1,19 @@
+# Keep the Docker build context lean. The application is bind-mounted at
+# runtime, so only the files needed for the build are relevant here.
+
+.git
+.env
+.env.*
+!.env.example
+node_modules
+vendor
+public/build
+public/hot
+storage/*.key
+storage/logs/*.log
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/testing/*
+storage/framework/views/*
+.phpunit.result.cache
+.tmp-smoke
